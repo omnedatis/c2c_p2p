@@ -1,0 +1,17 @@
+# output file
+_c2c_p2p/_c2c_p2p_out
+_c2c_p2p/*.json
+
+# python
+__pycache__
+
+#input file
+*.csv
+*.xls
+*.xlsx
+
+
+# environments
+env
+
+#ide
