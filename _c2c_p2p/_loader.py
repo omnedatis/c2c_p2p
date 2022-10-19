@@ -21,32 +21,29 @@ class _LocalDataProvider:
     def __init__(self) -> None:
         self._configs: dict = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
 
-    def get_data(self,
-                 check: Optional[bool] = False,
-                 training: Optional[bool] = True):
-        ret = {}
-        is_training = 'train' if training else 'validate'
+    def get_data(self, check: Optional[bool] = False, training: Optional[bool] = True):
         if not os.path.isdir(f'{OUTPUT_LOC}/{is_training}'):
             os.mkdir(f'{OUTPUT_LOC}/{is_training}')
-        train = '_训练' if training else '_验证'
+
+        ret = {}
+        is_training = 'train' if training else 'validate'
         for key, each in self._configs.items():
+
             logging.debug(f'Getting data for {key}')
             if os.path.isfile(f'{OUTPUT_LOC}/{is_training}/{each["table_name"]}.pkl'):
                 data = pickle.load(open(f'{OUTPUT_LOC}/{is_training}/{each["table_name"]}.pkl', 'rb'))
             else:
-                data = self.to_pandas(each['table_name'], training=training)
-
+                data = self._load(each['table_name'], training=training)
                 if check:
                     data = self._check(data, each['table_name'],
                                     each['table_fields'])
                 pickle.dump(data, open(f'{OUTPUT_LOC}/{is_training}/{each["table_name"]}.pkl', 'wb'))
+
             ret[each['table_name']] = data
             logging.info(f'Loading table {key} complete')
         return ret
 
-    def to_pandas(self,
-                  table_name: str,
-                  training: bool = True) -> pd.DataFrame:
+    def _load(self, table_name: str, training: bool = True) -> pd.DataFrame:
         if training:
             fname = f'./{table_name}_训练.csv'
         else:
@@ -56,18 +53,19 @@ class _LocalDataProvider:
 
     def _check(self, data: pd.DataFrame, table_name: str,
                table_info: tableType) -> pd.DataFrame:
-        results = []
-        int_pat = re.compile(r'[+-]?\d+.?')
-        float_pat = re.compile(r'[+-]?\d+(\.\d*)?')
+        int_pat = re.compile(r'[+-]?\d+.?') # integer pattern
+        float_pat = re.compile(r'[+-]?\d+(\.\d*)?') # float pattern
         float_pat2 = re.compile(r'[-+]?([0-9]*[.])?[0-9]+[eE][-+]?\d+')
-        data_pat = (r'(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})'
+        data_pat = (r'(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})' # !!! date pattern
                     r'(0[1-9]|1[012])'
                     r'(0[1-9]|[1-2][0-9]|3[01])')
         date_pat = re.compile(data_pat)
+
+        # read column by definition (if exists)
+        errors = []
         data_col = []
         error_col = []
         for each in table_info:
-
             if each in data.columns.tolist():
                 logging.debug(f'Checking column {each}')
                 data_col.append(each)
@@ -77,21 +75,25 @@ class _LocalDataProvider:
                 range_ = finfo['range']
                 nullable = finfo['nullable']
 
+                # nan mask
                 if nullable:
                     nan = ~(series == series)
                 else:
                     nan = (series == series)
 
+                # !!!
+                # check type with no bounds
                 if dtype == 'set':
                     is_int = np.vectorize(lambda x: bool(int_pat.fullmatch(x)))
                     result = np.isin(series, range_)
-
                 elif dtype == 'string':
                     result = np.full(series.shape, True)
                 elif dtype == 'date':
                     is_date = np.vectorize(
                         lambda x: bool(date_pat.fullmatch(x)))
                     result = is_date(series.astype('str'))
+
+                # check type with bounds
                 else:
                     if dtype == 'integer':
                         is_int = np.vectorize(
@@ -106,6 +108,7 @@ class _LocalDataProvider:
                     else:
                         raise RuntimeError(f'data type {dtype} not understood')
 
+                    # check range if types are all correct
                     if np.all(t_result):
                         for key, value in range_.items():
                             if value is not None:
@@ -117,28 +120,31 @@ class _LocalDataProvider:
                                     result = (value < series.astype(cast))
                                 elif key == Intervals.RO:
                                     result = (value > series.astype(cast))
+                    # else report type errors
                     else:
                         result = t_result
-
+                # masking
                 if nullable:
                     err = ~(result | nan)
                 else:
                     err = ~(result & nan)
-                results.append(err)
+                errors.append(err)
                 if np.any(err):
                     error_col.append(each)
             else:
                 logging.debug(f'Column {each} not in data')
-        errors = pd.DataFrame(np.array(results).T, columns=data_col)
-        if not os.path.isdir(OUTPUT_LOC):
-            os.mkdir(OUTPUT_LOC)
-        if np.any(np.array(results)):
+        # !!!
+        # only summary now
+        if np.any(np.array(errors)):
+            errors = pd.DataFrame(np.array(errors).T, columns=data_col)
             errors.sum(axis=0).to_csv(f'{OUTPUT_LOC}/{table_name}_errors.csv')
             logging.error(
                 f'Invalid data encountered in table {table_name}, on {error_col}'
             )
             raise RuntimeError('invalid data encountered')
 
+        # !!!
+        # change column names, and change types by definitions (if exists)
         new_dtype = {}
         new_col = {}
         for each in table_info.values():
@@ -158,6 +164,7 @@ class _LocalDataProvider:
                         f'data type {each["code"]} not understood')
             if (each['code'] != PK) and (each['code'] != PK2):
 
+                # !!!
                 exc = ExtendedColumn(each['code'], each['t_name'],
                                      each['label'], each['name'],
                                      each['method'])
@@ -173,20 +180,16 @@ class DataSet:
         self._validate = self._loader.get_data(check=True, training=False)
         self._configs = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
 
-    def p2p(self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def p2p(self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
         if isinstance(y, str):
             y = [y]
         if training:
-            ret: pd.DataFrame = self._training[
-                SchemaTableRefs.PROD_INFO.target_file]
+            ret: pd.DataFrame = self._training[SchemaTableRefs.PROD_INFO.target_file]
         else:
-            ret: pd.DataFrame = self._validate[
-                SchemaTableRefs.PROD_INFO.target_file]
+            ret: pd.DataFrame = self._validate[SchemaTableRefs.PROD_INFO.target_file]
         ret = ret.set_index(PK2)
 
         x_columns = []
@@ -207,9 +210,7 @@ class DataSet:
                     y_columns.append(col)
         return ret.loc[:, x_columns], ret.loc[:, y_columns]
 
-    def c2c(self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def c2c(self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
@@ -217,19 +218,13 @@ class DataSet:
             y = [y]
 
         if training:
-            transaction: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TRANS.target_file]
-            holdings: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_HODING.target_file]
-            client: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            transaction: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TRANS.target_file]
+            holdings: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_HODING.target_file]
+            client: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            transaction: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TRANS.target_file]
-            holdings: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_HODING.target_file]
-            client: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            transaction: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TRANS.target_file]
+            holdings: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_HODING.target_file]
+            client: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
         ret = transaction.merge(holdings,
                                 on=[PK, PK2],
                                 how='outer',
@@ -264,9 +259,7 @@ class DataSet:
                     y_columns.append(col)
         return ret.loc[:, x_columns], ret.loc[:, y_columns]
 
-    def c2c_trans(self,
-                  x: Union[str, list],
-                  y: Union[str, list],
+    def c2c_trans(self, x: Union[str, list], y: Union[str, list],
                   training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
@@ -274,15 +267,11 @@ class DataSet:
             y = [y]
 
         if training:
-            transaction: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TRANS.target_file]
-            client: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            transaction: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TRANS.target_file]
+            client: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            transaction: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TRANS.target_file]
-            client: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            transaction: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TRANS.target_file]
+            client: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
         ret = transaction.merge(client, on=PK, how='inner', suffixes=('', '_'))
         ret = ret.set_index(PK)
 
@@ -310,10 +299,7 @@ class DataSet:
                     y_columns.append(col)
         return ret.loc[:, x_columns], ret.loc[:, y_columns]
 
-    def c2c_holding(
-            self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def c2c_holding(self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
@@ -321,15 +307,11 @@ class DataSet:
             y = [y]
 
         if training:
-            holdings: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_HODING.target_file]
-            client: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            holdings: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_HODING.target_file]
+            client: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            holdings: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_HODING.target_file]
-            client: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            holdings: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_HODING.target_file]
+            client: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
         ret = client.merge(holdings, on=PK, how='inner', suffixes=('', '_'))
         ret = ret.set_index(PK)
 
@@ -356,20 +338,16 @@ class DataSet:
                     y_columns.append(col)
         return ret.loc[:, x_columns], ret.loc[:, y_columns]
 
-    def c2c_client(self,
-                   x: Union[str, list],
-                   y: Union[str, list],
+    def c2c_client(self, x: Union[str, list], y: Union[str, list],
                    training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
         if isinstance(y, str):
             y = [y]
         if training:
-            ret: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            ret: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            ret: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            ret: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
         ret = ret.set_index(PK)
 
         x_columns = []
@@ -392,20 +370,16 @@ class DataSet:
                     y_columns.append(col)
         return ret.loc[:, x_columns], ret.loc[:, y_columns]
 
-    def gen_p2p(self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def gen_p2p(self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
         if isinstance(y, str):
             y = [y]
         if training:
-            prod: pd.DataFrame = self._training[
-                SchemaTableRefs.PROD_INFO.target_file]
+            prod: pd.DataFrame = self._training[SchemaTableRefs.PROD_INFO.target_file]
         else:
-            prod: pd.DataFrame = self._validate[
-                SchemaTableRefs.PROD_INFO.target_file]
+            prod: pd.DataFrame = self._validate[SchemaTableRefs.PROD_INFO.target_file]
 
         prod_col = {
             ExtendedColumn(*i.split(SPLITER)).code: i
@@ -426,16 +400,13 @@ class DataSet:
             if is_valid:
                 y_col.append(prod_col[each['code']])
         prod = prod.set_index(PK2)
-
+        # !!!
         step = 10 if training else 1
         xdata, ydata = prod[x_col].iloc[::step], prod[y_col].iloc[::step]
         for each in ydata:
             yield xdata, ydata[each]
 
-    def gen_c2c_client(
-            self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def gen_c2c_client(self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
@@ -443,11 +414,9 @@ class DataSet:
             y = [y]
 
         if training:
-            client: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            client: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            client: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            client: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
 
         client_col = {
             ExtendedColumn(*i.split(SPLITER)).code: i
@@ -468,16 +437,13 @@ class DataSet:
             if is_valid:
                 y_col.append(client_col[each['code']])
         client = client.set_index(PK)
-
+        # !!!
         step = 5 if training else 1
         xdata, ydata = client[x_col].iloc[::step,], client[y_col].iloc[::step,]
         for each in ydata:
             yield xdata, ydata[each]
 
-    def gen_c2c_trans(
-            self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def gen_c2c_trans( self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
@@ -485,15 +451,11 @@ class DataSet:
             y = [y]
 
         if training:
-            transaction: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TRANS.target_file]
-            client: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            transaction: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TRANS.target_file]
+            client: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            transaction: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TRANS.target_file]
-            client: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            transaction: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TRANS.target_file]
+            client: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
 
         client_col = {
             ExtendedColumn(*i.split(SPLITER)).code: i
@@ -520,7 +482,7 @@ class DataSet:
             is_valid &= (each['label'] in y)
             if is_valid:
                 y_col.append(trans_col[each['code']])
-
+        # !!!
         step = 25 if training else 1
         xdata, ydata = client[x_col], transaction[y_col].iloc[::step,]
         for each in ydata:
@@ -532,10 +494,7 @@ class DataSet:
                 x_col = [i for i in x_col if i != PK]
                 yield data[x_col], data[each]
 
-    def gen_c2c_holding(
-            self,
-            x: Union[str, list],
-            y: Union[str, list],
+    def gen_c2c_holding(self, x: Union[str, list], y: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if isinstance(x, str):
             x = [x]
@@ -543,15 +502,11 @@ class DataSet:
             y = [y]
 
         if training:
-            holdings: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_HODING.target_file]
-            client: pd.DataFrame = self._training[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            holdings: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_HODING.target_file]
+            client: pd.DataFrame = self._training[SchemaTableRefs.CLIENT_TPYE.target_file]
         else:
-            holdings: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_HODING.target_file]
-            client: pd.DataFrame = self._validate[
-                SchemaTableRefs.CLIENT_TPYE.target_file]
+            holdings: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_HODING.target_file]
+            client: pd.DataFrame = self._validate[SchemaTableRefs.CLIENT_TPYE.target_file]
 
         client_col = {
             ExtendedColumn(*i.split(SPLITER)).code: i
@@ -578,7 +533,7 @@ class DataSet:
             is_valid &= (each['label'] in y)
             if is_valid:
                 y_col.append(trans_col[each['code']])
-
+        # !!!
         step = 10 if training else 1
         xdata, ydata = client[x_col], holdings[y_col].iloc[::step,]
         for each in ydata:

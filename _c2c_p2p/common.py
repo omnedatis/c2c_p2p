@@ -62,7 +62,6 @@ columnAttrType = Dict[str, Union[str, bool, dataRangeType]]
 tableType = Dict[str, columnAttrType]
 configType = Dict[str, Dict[str, Union[str, tableType]]]
 
-ExtendedColumn = namedtuple(
-    'ExtendedColumn', ['code', 't_name', 'label', 'name', 'method'])
 SPLITER = '`'
+ExtendedColumn = namedtuple('ExtendedColumn', ['code', 't_name', 'label', 'name', 'method'])
 Task = namedtuple('Task', ['x', 'y', 'name', 'task'])

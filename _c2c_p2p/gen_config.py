@@ -10,18 +10,18 @@ import pandas as pd
 from common import (SCHEMA_CONFIG_LOC, typeNames, FieldInfoNames, SchemaTableRefs,
                     Intervals, configType)
 try:
-
+    # read all table schema
     configs: configType = {}
     for each_t in SchemaTableRefs:
         table = {
             "table_name": each_t.target_file,
             "table_fields": {},
         }
-
+        # read main definition (field definitions)
         field_info: pd.DataFrame = pd.read_excel(
             each_t.file_name, each_t.main_def).set_index(FieldInfoNames.CODE.value)
 
-
+        # read set definitions
         set_sheet = pd.read_excel(
             each_t.file_name, each_t.set_def, header=None).values
         set_elements = field_info.loc[field_info[FieldInfoNames.TYPE.value]
@@ -33,7 +33,7 @@ try:
                     set_defs[cell] = [
                         int(i) for i in set_sheet[rid+2].tolist() if i == i]
 
-
+        # read value definitions
         value_sheet = pd.read_excel(each_t.file_name, each_t.value_def)
         column_names = {i: col for i, col in enumerate(value_sheet)}
         value_defs = {}
@@ -69,27 +69,25 @@ try:
                         Intervals.LO.value: cell if (cell == cell) else None
                     })
 
+        # make unified schema for both value and set
         fields = field_info.index.dropna()
         for each_f in fields:
 
-
+            # decide type and range for value and set
             type_name = typeNames.get(
                 str(field_info.loc[each_f, FieldInfoNames.TYPE]))
-
-            if type_name is None:
-                raise RuntimeError(f'invalid value of type name {type_name}')
+            assert type_name is None, RuntimeError(
+                f'invalid value of type name {type_name}')
 
             if type_name == typeNames.SET:
                 type_ = 'set'
-                range_ = set_defs[field_info.loc[each_f,
-                                                 FieldInfoNames.SET_CODE]]
+                range_ = set_defs[field_info.loc[each_f, FieldInfoNames.SET_CODE]]
             elif type_name == typeNames.VALUE:
-                ret = value_defs[field_info.loc[each_f,
-                                                FieldInfoNames.SET_CODE]]
+                ret = value_defs[field_info.loc[each_f, FieldInfoNames.SET_CODE]]
                 type_ = ret['type'].lower()
                 range_ = ret['intervals']
 
-
+            # whether is nullable
             if field_info.loc[each_f, FieldInfoNames.NULLABLE] == 'N':
                 nullable = False
             elif field_info.loc[each_f, FieldInfoNames.NULLABLE] == 'Y':
@@ -97,6 +95,7 @@ try:
             else:
                 raise RuntimeError('undefined nullable value')
 
+            # !!!
             method = '迴歸' if type_ != 'set' else '分類'
 
             table["table_fields"][each_f] = {
