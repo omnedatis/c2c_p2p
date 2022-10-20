@@ -380,3 +380,59 @@ class DataSet:
             data = xdata.merge(ydata[[PK, each]], on=PK, how='inner',suffixes=('', '_')).set_index(PK)
             x_col = [i for i in x_col if i != each]
             yield data[x_col], data[each]
+
+    def gen_random_sample(self, table_name:str, sample_size:int, 
+            random_id:bool) -> pd.DataFrame:
+        if table_name not in self._configs:
+            raise KeyError(f'{table_name} not found')
+        
+        ret = []
+        table = self._configs[table_name]
+        for f_name, finfo in table.items():
+            dtype = finfo['dtype']
+            if dtype == 'float':
+                left = 0
+                right = 100
+                for k, interval in finfo['range']:
+                    if interval is not None:
+                        if k == Intervals.LC.value:
+                            left = interval
+                        elif k == Intervals.LO.value:
+                            left = interval + 1e-10
+                        elif k == Intervals.RC.value:
+                            right = interval
+                        elif k == Intervals.RO.value:
+                            right = interval - 1e-10
+                ret[f_name] = np.random.rand(sample_size)*(right-left)-left
+            elif dtype == 'integer':
+                left = 0
+                right = 100
+                for k, interval in finfo['range']:
+                    if interval is not None:
+                        if k == Intervals.LC.value:
+                            left = interval
+                        elif k == Intervals.LO.value:
+                            left = interval + 1
+                        elif k == Intervals.RC.value:
+                            right = interval
+                        elif k == Intervals.RO.value:
+                            right = interval - 1
+                ret[f_name] = np.random.randint(left, right, sample_size)
+            elif dtype == 'set':
+                set_ = finfo['range']
+                ret[f_name] = np.random.choice(set_, sample_size, replace=False)
+            elif finfo['code'] == PK:
+                if random_id:
+                    sample_id = np.array([f'CUST_{i+1}' for i in range(sample_size)*2])
+                    np.random.shuffle(sample_id)
+                    ret[f_name] = sample_id[::2]
+                else:
+                    ret[f_name] = np.array([f'CUST_{i+1}' for i in range(sample_size)])
+            elif finfo['code'] == PK2:
+                if random_id:
+                    sample_id = np.array([f'PROD_{i+1}' for i in range(sample_size)*2])
+                    np.random.shuffle(sample_id)
+                    ret[f_name] = sample_id[::2]
+                else:
+                    ret[f_name] = np.array([f'PROD_{i+1}' for i in range(sample_size)])
+        return pd.DataFrame(ret).T
