@@ -9,8 +9,8 @@ import json
 import numpy as np
 import pandas as pd
 
-from .common import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, Intervals, SchemaTableRefs,
-                    configType, ExtendedColumn, SPLITER)
+from .common import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, SPLITER, ValueColumns,
+                     SchemaTableRefs, Dtypes, configType, ExtendedColumn)
 
 PK = 'customerid'
 PK2 = 'prod_code'
@@ -81,12 +81,11 @@ class _LocalDataProvider:
                     nan = (series == series)
                 
                 # check type with no bounds
-                if dtype == 'set':
-                    is_int = np.vectorize(lambda x: bool(int_pat.fullmatch(x)))
+                if dtype == Dtypes.SET.value:
                     result = np.isin(series, range_)
-                elif dtype == 'string':
+                elif dtype == Dtypes.STRING.value:
                     result = np.full(series.shape, True)
-                elif dtype == 'date':
+                elif dtype == Dtypes.DATE.value:
                     is_date = np.vectorize(
                         lambda x: bool(date_pat.fullmatch(x)))
                     result = is_date(series.astype('str'))
@@ -94,12 +93,12 @@ class _LocalDataProvider:
                 # !!!
                 # check type with bounds
                 else:
-                    if dtype == 'integer':
+                    if dtype == Dtypes.INT.value:
                         is_int = np.vectorize(
                             lambda x: bool(int_pat.fullmatch(x)))
                         t_result = is_int(series.astype('str'))
-                        cast = 'int'
-                    elif dtype == 'float':
+                        cast = 'float'
+                    elif dtype == Dtypes.FLOAT.value:
                         is_float = np.vectorize(lambda x: bool(
                             float_pat.fullmatch(x) or float_pat2.fullmatch(x)))
                         t_result = is_float(series.astype('str'))
@@ -111,13 +110,13 @@ class _LocalDataProvider:
                     if np.all(t_result):
                         for key, value in range_.items():
                             if value is not None:
-                                if key == Intervals.LC:
+                                if key == ValueColumns.LC:
                                     result = (value <= series.astype(cast))
-                                elif key == Intervals.RC:
+                                elif key == ValueColumns.RC:
                                     result = (value >= series.astype(cast))
-                                elif key == Intervals.LO:
+                                elif key == ValueColumns.LO:
                                     result = (value < series.astype(cast))
-                                elif key == Intervals.RO:
+                                elif key == ValueColumns.RO:
                                     result = (value > series.astype(cast))
                     # else report type errors
                     else:
@@ -157,11 +156,11 @@ class _LocalDataProvider:
                 finfo['name'], finfo['method']
             )
             if finfo['code'] in data.columns:
-                if finfo['dtype'] == 'integer':
+                if finfo['dtype'] == Dtypes.INT.value:
                     new_data.append(data[each].astype('float32').rename(SPLITER.join(exc)))
-                elif finfo['dtype'] == 'float':
+                elif finfo['dtype'] == Dtypes.FLOAT.value:
                     new_data.append(data[each].astype('float32').rename(SPLITER.join(exc)))
-                elif finfo['dtype'] == 'set':
+                elif finfo['dtype'] == Dtypes.SET.value:
                     cols:np.ndarray = np.array(finfo['range'])
                     values = data[each].values
                     one_hot = np.full((values.shape[0], cols.shape[0]), 0)
@@ -169,7 +168,7 @@ class _LocalDataProvider:
                     one_hot[values==cols] = 1
                     names = [ExtendedColumn(
                         finfo['code'], finfo['t_name'], finfo['label'], 
-                        finfo['name']+f'_{i}', finfo['method']
+                        finfo['name']+f'_類別{i}', finfo['method']
                     ) for i in finfo['range']]
                     names = [SPLITER.join(i) for i in names]
                     new_data.append(pd.DataFrame(one_hot, columns=names).astype('float32'))
@@ -186,7 +185,7 @@ class DataSet:
     def __init__(self):
         self._loader = _LocalDataProvider()
         self._training = self._loader.get_data(training=True)
-        self._validate = self._loader.get_data(training=False)
+        self._validate = self._loader.get_data(training=False) 
         self._current = self._training
         self._configs = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
     
@@ -328,7 +327,7 @@ class DataSet:
         y_columns = [i for i in columns if ExtendedColumn(*i.split(SPLITER)).label in y]
         
         # !!!
-        step = 5 if training else 1
+        step = 10 if training else 1
         xdata, ydata = client[x_columns].iloc[::step,], client[y_columns].iloc[::step,]
         for each in ydata:
             yield xdata, ydata[each]
@@ -390,35 +389,35 @@ class DataSet:
         table = self._configs[table_name]
         for f_name, finfo in table.items():
             dtype = finfo['dtype']
-            if dtype == 'float':
+            if dtype == Dtypes.FLOAT.value:
                 left = 0
                 right = 100
                 for k, interval in finfo['range']:
                     if interval is not None:
-                        if k == Intervals.LC.value:
+                        if k == ValueColumns.LC.value:
                             left = interval
-                        elif k == Intervals.LO.value:
+                        elif k == ValueColumns.LO.value:
                             left = interval + 1e-10
-                        elif k == Intervals.RC.value:
+                        elif k == ValueColumns.RC.value:
                             right = interval
-                        elif k == Intervals.RO.value:
+                        elif k == ValueColumns.RO.value:
                             right = interval - 1e-10
                 ret[f_name] = np.random.rand(sample_size)*(right-left)-left
-            elif dtype == 'integer':
+            elif dtype == Dtypes.INT.value:
                 left = 0
                 right = 100
                 for k, interval in finfo['range']:
                     if interval is not None:
-                        if k == Intervals.LC.value:
+                        if k == ValueColumns.LC.value:
                             left = interval
-                        elif k == Intervals.LO.value:
+                        elif k == ValueColumns.LO.value:
                             left = interval + 1
-                        elif k == Intervals.RC.value:
+                        elif k == ValueColumns.RC.value:
                             right = interval
-                        elif k == Intervals.RO.value:
+                        elif k == ValueColumns.RO.value:
                             right = interval - 1
                 ret[f_name] = np.random.randint(left, right, sample_size)
-            elif dtype == 'set':
+            elif dtype == Dtypes.SET.value:
                 set_ = finfo['range']
                 ret[f_name] = np.random.choice(set_, sample_size, replace=False)
             elif finfo['code'] == PK:

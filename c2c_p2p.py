@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
+from collections import defaultdict, namedtuple
 import datetime
 import logging
-from logging import handlers
-from collections import defaultdict, namedtuple
 import os
 from typing import Dict, List
-import sys
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -19,22 +16,6 @@ from sklearn.tree import export_text
 
 from _c2c_p2p import OUTPUT_LOC, LOG_LOC, SPLITER, Task, ExtendedColumn, DataSet
 
-warnings.filterwarnings("ignore")
-if not os.path.exists(LOG_LOC):
-    os.makedirs(LOG_LOC)
-if not os.path.exists(f'{OUTPUT_LOC}/trees'):
-    os.makedirs(f'{OUTPUT_LOC}/trees')
-if not os.path.exists(f'{OUTPUT_LOC}/reports'):
-    os.makedirs(f'{OUTPUT_LOC}/reports')
-file_hdlr = handlers.TimedRotatingFileHandler(
-    filename=f'{LOG_LOC}/.log', when='D', backupCount=7, encoding='utf-8')
-fmt = '%(asctime)s.%(msecs)03d - %(levelname)s - %(filename)s - line %(lineno)d: %(message)s'
-info_hdlr = logging.StreamHandler(sys.stdout)
-info_hdlr.setLevel(logging.INFO)
-file_hdlr.setLevel(logging.INFO)
-logging.basicConfig(level=0, format=fmt, handlers=[
-                    file_hdlr, info_hdlr], datefmt='%Y-%m-%d %H:%M:%S')
-
 dataset = DataSet()
 tasks = [
     Task(['C_1'], ['C_2'], 'C_1 predict C_2', 'gen_c2c_client'),
@@ -45,7 +26,6 @@ tasks = [
     Task(['P_1'], ['P_3'], 'P_1 predict P_3', 'gen_p2p'),
     Task(['P_1'], ['P_4'], 'P_1 predict P_4', 'gen_p2p')
 ]
-
 
 featureName = str
 targetName = str
@@ -78,7 +58,8 @@ for i, task in enumerate(tasks):
         y_value: np.ndarray = _y_value[(_y_value == _y_value)]
 
         # remove effective columns
-        x_value: np.ndarray = _x_value[:,(_x_value == _x_value).sum(axis=0) != 0]
+        x_value: np.ndarray = _x_value[:,
+                                       (_x_value == _x_value).sum(axis=0) != 0]
 
         # get data column name
         target_features[y_raw.name] = x_raw.columns[(
@@ -119,8 +100,9 @@ for i, task in enumerate(tasks):
                 y_info = ExtendedColumn(*y_raw.name.split(SPLITER))
 
                 # output tree txt
-                tree = export_text(pipe['tree'], feature_names=f_cols, show_weights=True)
-                with open(f'{OUTPUT_LOC}/trees/{y_info[0]}_{task.name}.txt', 'w', encoding='utf-8') as f:
+                tree = export_text(
+                    pipe['tree'], feature_names=f_cols, show_weights=True)
+                with open(f'{OUTPUT_LOC}/trees/{y_info.name}_{task.name}.txt', 'w', encoding='utf-8') as f:
                     f.writelines(tree)
 
                 # output result for all entries

@@ -7,8 +7,8 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from common import (SCHEMA_CONFIG_LOC, typeNames, FieldInfoNames, SchemaTableRefs,
-                    Intervals, configType)
+from .common import (SCHEMA_CONFIG_LOC, DataCateNames, FieldInfoNames, SchemaTableRefs,
+                    ValueColumns, configType)
 try:
     # read all table schema
     configs: configType = {}
@@ -24,8 +24,8 @@ try:
         # read set definitions
         set_sheet = pd.read_excel(
             each_t.file_name, each_t.set_def, header=None).values
-        set_elements = field_info.loc[field_info[FieldInfoNames.TYPE.value]
-                                      == typeNames.SET.value][FieldInfoNames.SET_CODE.value].tolist()
+        set_elements = field_info.loc[field_info[FieldInfoNames.CATE.value]
+                                      == DataCateNames.SET.value][FieldInfoNames.CATE_CODE.value].tolist()
         set_defs = {}
         for rid, row in enumerate(set_sheet):
             for cid, cell in enumerate(row.tolist()):
@@ -41,7 +41,7 @@ try:
             for cid, cell in enumerate(row):
                 cname = column_names[cid]
 
-                if cname == '名称':
+                if cname == ValueColumns.NAME.value:
                     cell_key = cell
                     value_defs[cell_key] = {
                         'type': '',
@@ -49,24 +49,24 @@ try:
                     }
                     if cell_key is None:
                         break
-                elif cname == '资料型态':
+                elif cname == ValueColumns.VALUEDTYPE.value:
                     value_defs[cell_key]['type'] += cell.lower()
 
-                elif cname == Intervals.LC.value:
+                elif cname == ValueColumns.LC.value:
                     value_defs[cell_key]['intervals'].update({
-                        Intervals.LC.value: cell if (cell == cell) else None
+                        ValueColumns.LC.value: cell if (cell == cell) else None
                     })
-                elif cname == Intervals.RC.value:
+                elif cname == ValueColumns.RC.value:
                     value_defs[cell_key]['intervals'].update({
-                        Intervals.RC.value: cell if (cell == cell) else None
+                        ValueColumns.RC.value: cell if (cell == cell) else None
                     })
-                elif cname == Intervals.RO.value:
+                elif cname == ValueColumns.RO.value:
                     value_defs[cell_key]['intervals'].update({
-                        Intervals.RO.value: cell if (cell == cell) else None
+                        ValueColumns.RO.value: cell if (cell == cell) else None
                     })
-                elif cname == Intervals.LO.value:
+                elif cname == ValueColumns.LO.value:
                     value_defs[cell_key]['intervals'].update({
-                        Intervals.LO.value: cell if (cell == cell) else None
+                        ValueColumns.LO.value: cell if (cell == cell) else None
                     })
 
         # make unified schema for both value and set
@@ -74,16 +74,16 @@ try:
         for each_f in fields:
 
             # decide type and range for value and set
-            type_name = typeNames.get(
-                str(field_info.loc[each_f, FieldInfoNames.TYPE]))
-            assert type_name is None, RuntimeError(
+            type_name = DataCateNames.get(
+                str(field_info.loc[each_f, FieldInfoNames.CATE]))
+            assert type_name is not None, RuntimeError(
                 f'invalid value of type name {type_name}')
 
-            if type_name == typeNames.SET:
+            if type_name == DataCateNames.SET:
                 type_ = 'set'
-                range_ = set_defs[field_info.loc[each_f, FieldInfoNames.SET_CODE]]
-            elif type_name == typeNames.VALUE:
-                ret = value_defs[field_info.loc[each_f, FieldInfoNames.SET_CODE]]
+                range_ = set_defs[field_info.loc[each_f, FieldInfoNames.CATE_CODE]]
+            elif type_name == DataCateNames.VALUE:
+                ret = value_defs[field_info.loc[each_f, FieldInfoNames.CATE_CODE]]
                 type_ = ret['type'].lower()
                 range_ = ret['intervals']
 
