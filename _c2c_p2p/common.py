@@ -59,8 +59,8 @@ class FieldInfoNames(str, Enum):
 
 dataRangeType = Union[Dict[str, Optional[Union[int, float]]], List[int]]
 columnAttrType = Dict[str, Union[str, bool, dataRangeType]]
-tableType = Dict[str, columnAttrType]
-configType = Dict[str, Dict[str, Union[str, tableType]]]
+tableFieldType = Dict[str, columnAttrType]
+configType = Dict[str, Dict[str, Union[str, tableFieldType]]]
 
 SPLITER = '`'
 ExtendedColumn = namedtuple('ExtendedColumn', ['code', 't_name', 'label', 'name', 'method'])

@@ -92,7 +92,6 @@ for i, task in enumerate(tasks):
                 logging.info('Perform regression')
                 pipe = Pipeline(steps=[
                     ('impute', SimpleImputer(missing_values=np.nan)),
-                    ('impute2', SimpleImputer(missing_values=pd.NA)),
                     ('tree', LinearRegression())
                 ])
 
@@ -100,7 +99,6 @@ for i, task in enumerate(tasks):
 
                 pipe = Pipeline(steps=[
                     ('impute', SimpleImputer(missing_values=np.nan)),
-                    ('impute2', SimpleImputer(missing_values=pd.NA)),
                     ('tree',  DecisionTreeClassifier(
                         criterion='entropy', max_depth=15))
                 ])
