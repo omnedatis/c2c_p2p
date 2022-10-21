@@ -182,16 +182,22 @@ class _LocalDataProvider:
         return pd.concat(new_data, axis=1)
 
 class _RandomDataProvider:
-    def __init__(self, table_sizes:Optional(Dict[Union[str, TableNames], int])) -> None:
+    def __init__(self, table_sizes:Optional[Dict[Union[str, TableNames], int]]=None,
+        random_id:Optional[bool]=None) -> None:
         self._configs: configType = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
+        self._random_id = False
+        if random_id is not None:
+            self._random_id = random_id
         self._table_sizes = {
             TableNames.CLIENT_TPYE:248000,
-            TableNames.CLIENT_TRANS:619000,
+            TableNames.CLIENT_HODING:619000,
             TableNames.CLIENT_TRANS:3540000,
             TableNames.PROD_INFO:550
         }
         if table_sizes is not None:
             self._table_sizes = table_sizes
+        
+
     def get_data(self, training:Optional[bool]=True, write_local:Optional[bool]=False):
         
         is_training = 'train' if training else 'validate'
@@ -206,7 +212,7 @@ class _RandomDataProvider:
                 header=0, encoding='utf-8-sig')
             else:
                 size = self._table_sizes[table_name]
-                data:pd.DataFrame = self.gen_random_sample(table_name, size)
+                data:pd.DataFrame = self.gen_random_sample(table_name, size, self._random_id)
                 data.to_csv(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv', encoding='utf-8-sig')
 
             ret[table_name] = data
@@ -218,14 +224,14 @@ class _RandomDataProvider:
         if table_name not in self._configs:
             raise KeyError(f'{table_name} not found')
         
-        ret = []
-        table = self._configs[table_name]
+        ret = {}
+        table = self._configs[table_name]['table_fields']
         for f_name, finfo in table.items():
             dtype = finfo['dtype']
             if dtype == Dtypes.FLOAT.value:
                 left = 0
                 right = 100
-                for k, interval in finfo['range']:
+                for k, interval in finfo['range'].items():
                     if interval is not None:
                         if k == ValueColumns.LC.value:
                             left = interval
@@ -239,7 +245,7 @@ class _RandomDataProvider:
             elif dtype == Dtypes.INT.value:
                 left = 0
                 right = 100
-                for k, interval in finfo['range']:
+                for k, interval in finfo['range'].items():
                     if interval is not None:
                         if k == ValueColumns.LC.value:
                             left = interval
@@ -252,7 +258,7 @@ class _RandomDataProvider:
                 ret[f_name] = np.random.randint(left, right, sample_size)
             elif dtype == Dtypes.SET.value:
                 set_ = finfo['range']
-                ret[f_name] = np.random.choice(set_, sample_size, replace=False)
+                ret[f_name] = np.random.choice(set_, sample_size, replace=True)
             elif finfo['code'] == PK:
                 if random_id:
                     sample_id = np.array([f'CUST_{i+1}' for i in range(sample_size)*2])
@@ -267,7 +273,7 @@ class _RandomDataProvider:
                     ret[f_name] = sample_id[::2]
                 else:
                     ret[f_name] = np.array([f'PROD_{i+1}' for i in range(sample_size)])
-        return pd.DataFrame(ret).T
+        return pd.DataFrame(ret)
 class DataSet:
     def __init__(self):
         self._loader = _LocalDataProvider()
@@ -469,9 +475,11 @@ class DataSet:
 
 class RandomDataSet(DataSet):
 
-    def __init__(self):
+    def __init__(self, table_size:Optional[Dict[Union[str, TableNames], int]]=None,):
         self._loader = _RandomDataProvider()
-        self._training = self._loader.get_data(training=True)
-        self._validate = self._loader.get_data(training=False) 
+        self._training = self._loader.get_data(training=True, write_local=True)
+        self._validate = self._loader.get_data(training=False, write_local=True) 
         self._current = self._training
         self._configs = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
+
+RandomDataSet()
