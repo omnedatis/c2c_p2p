@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 
 from .common import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, SPLITER, ValueColumns,
-                     SchemaTableRefs, Dtypes, configType, ExtendedColumn)
+                     SchemaTableRefs, TableNames, Dtypes, configType, 
+                     ExtendedColumn)
 
 PK = 'customerid'
 PK2 = 'prod_code'
@@ -29,7 +30,7 @@ class _LocalDataProvider:
 
         ret = {}
         for table_name in self._configs:
-            logging.debug(f'Getting data for {table_name}')
+            logging.debug(f'Reading table for {table_name}')
             if os.path.isfile(f'{OUTPUT_LOC}/{is_training}/{table_name}.pkl'):
                 data = pickle.load(open(f'{OUTPUT_LOC}/{is_training}/{table_name}.pkl', 'rb'))
             else:
@@ -39,7 +40,7 @@ class _LocalDataProvider:
                 pickle.dump(data, open(f'{OUTPUT_LOC}/{is_training}/{table_name}.pkl', 'wb'))
 
             ret[table_name] = data
-            logging.info(f'Loading table {table_name} complete')
+            logging.info(f'Reading table {table_name} complete')
         return ret
 
     def _load(self, table_name: str, training: bool = True) -> pd.DataFrame:
@@ -180,7 +181,93 @@ class _LocalDataProvider:
         
         return pd.concat(new_data, axis=1)
 
+class _RandomDataProvider:
+    def __init__(self, table_sizes:Optional(Dict[Union[str, TableNames], int])) -> None:
+        self._configs: configType = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
+        self._table_sizes = {
+            TableNames.CLIENT_TPYE:248000,
+            TableNames.CLIENT_TRANS:619000,
+            TableNames.CLIENT_TRANS:3540000,
+            TableNames.PROD_INFO:550
+        }
+        if table_sizes is not None:
+            self._table_sizes = table_sizes
+    def get_data(self, training:Optional[bool]=True, write_local:Optional[bool]=False):
+        
+        is_training = 'train' if training else 'validate'
+        if not os.path.isdir(f'{OUTPUT_LOC}/random_{is_training}') and write_local:
+            os.mkdir(f'{OUTPUT_LOC}/random_{is_training}')
 
+        ret = {}
+        for table_name in self._configs:
+            logging.debug(f'Generating data for {table_name}')
+            if os.path.isfile(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv'):
+                data = pd.read_csv(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv',
+                header=0, encoding='utf-8-sig')
+            else:
+                size = self._table_sizes[table_name]
+                data:pd.DataFrame = self.gen_random_sample(table_name, size)
+                data.to_csv(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv', encoding='utf-8-sig')
+
+            ret[table_name] = data
+            logging.info(f'Generating data {table_name} complete')
+        return ret
+
+    def gen_random_sample(self, table_name:str, sample_size:int, 
+            random_id:bool) -> pd.DataFrame:
+        if table_name not in self._configs:
+            raise KeyError(f'{table_name} not found')
+        
+        ret = []
+        table = self._configs[table_name]
+        for f_name, finfo in table.items():
+            dtype = finfo['dtype']
+            if dtype == Dtypes.FLOAT.value:
+                left = 0
+                right = 100
+                for k, interval in finfo['range']:
+                    if interval is not None:
+                        if k == ValueColumns.LC.value:
+                            left = interval
+                        elif k == ValueColumns.LO.value:
+                            left = interval + 1e-10
+                        elif k == ValueColumns.RC.value:
+                            right = interval
+                        elif k == ValueColumns.RO.value:
+                            right = interval - 1e-10
+                ret[f_name] = np.random.rand(sample_size)*(right-left)-left
+            elif dtype == Dtypes.INT.value:
+                left = 0
+                right = 100
+                for k, interval in finfo['range']:
+                    if interval is not None:
+                        if k == ValueColumns.LC.value:
+                            left = interval
+                        elif k == ValueColumns.LO.value:
+                            left = interval + 1
+                        elif k == ValueColumns.RC.value:
+                            right = interval
+                        elif k == ValueColumns.RO.value:
+                            right = interval - 1
+                ret[f_name] = np.random.randint(left, right, sample_size)
+            elif dtype == Dtypes.SET.value:
+                set_ = finfo['range']
+                ret[f_name] = np.random.choice(set_, sample_size, replace=False)
+            elif finfo['code'] == PK:
+                if random_id:
+                    sample_id = np.array([f'CUST_{i+1}' for i in range(sample_size)*2])
+                    np.random.shuffle(sample_id)
+                    ret[f_name] = sample_id[::2]
+                else:
+                    ret[f_name] = np.array([f'CUST_{i+1}' for i in range(sample_size)])
+            elif finfo['code'] == PK2:
+                if random_id:
+                    sample_id = np.array([f'PROD_{i+1}' for i in range(sample_size)*2])
+                    np.random.shuffle(sample_id)
+                    ret[f_name] = sample_id[::2]
+                else:
+                    ret[f_name] = np.array([f'PROD_{i+1}' for i in range(sample_size)])
+        return pd.DataFrame(ret).T
 class DataSet:
     def __init__(self):
         self._loader = _LocalDataProvider()
@@ -380,58 +467,11 @@ class DataSet:
             x_col = [i for i in x_col if i != each]
             yield data[x_col], data[each]
 
-    def gen_random_sample(self, table_name:str, sample_size:int, 
-            random_id:bool) -> pd.DataFrame:
-        if table_name not in self._configs:
-            raise KeyError(f'{table_name} not found')
-        
-        ret = []
-        table = self._configs[table_name]
-        for f_name, finfo in table.items():
-            dtype = finfo['dtype']
-            if dtype == Dtypes.FLOAT.value:
-                left = 0
-                right = 100
-                for k, interval in finfo['range']:
-                    if interval is not None:
-                        if k == ValueColumns.LC.value:
-                            left = interval
-                        elif k == ValueColumns.LO.value:
-                            left = interval + 1e-10
-                        elif k == ValueColumns.RC.value:
-                            right = interval
-                        elif k == ValueColumns.RO.value:
-                            right = interval - 1e-10
-                ret[f_name] = np.random.rand(sample_size)*(right-left)-left
-            elif dtype == Dtypes.INT.value:
-                left = 0
-                right = 100
-                for k, interval in finfo['range']:
-                    if interval is not None:
-                        if k == ValueColumns.LC.value:
-                            left = interval
-                        elif k == ValueColumns.LO.value:
-                            left = interval + 1
-                        elif k == ValueColumns.RC.value:
-                            right = interval
-                        elif k == ValueColumns.RO.value:
-                            right = interval - 1
-                ret[f_name] = np.random.randint(left, right, sample_size)
-            elif dtype == Dtypes.SET.value:
-                set_ = finfo['range']
-                ret[f_name] = np.random.choice(set_, sample_size, replace=False)
-            elif finfo['code'] == PK:
-                if random_id:
-                    sample_id = np.array([f'CUST_{i+1}' for i in range(sample_size)*2])
-                    np.random.shuffle(sample_id)
-                    ret[f_name] = sample_id[::2]
-                else:
-                    ret[f_name] = np.array([f'CUST_{i+1}' for i in range(sample_size)])
-            elif finfo['code'] == PK2:
-                if random_id:
-                    sample_id = np.array([f'PROD_{i+1}' for i in range(sample_size)*2])
-                    np.random.shuffle(sample_id)
-                    ret[f_name] = sample_id[::2]
-                else:
-                    ret[f_name] = np.array([f'PROD_{i+1}' for i in range(sample_size)])
-        return pd.DataFrame(ret).T
+class RandomDataSet(DataSet):
+
+    def __init__(self):
+        self._loader = _RandomDataProvider()
+        self._training = self._loader.get_data(training=True)
+        self._validate = self._loader.get_data(training=False) 
+        self._current = self._training
+        self._configs = json.load(open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))

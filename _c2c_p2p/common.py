@@ -15,6 +15,11 @@ class Dtypes(str, Enum):
     DATE = 'date'
     STRING = 'string'
 
+class TableNames(str, Enum):
+    PROD_INFO = './产品类.xls'
+    CLIENT_TRANS = './客户交易.xls'
+    CLIENT_HODING = './客户持仓.xls'
+    CLIENT_TPYE = './客户类别.xls'
 
 class RefNames(NamedTuple):
     file_name: str
