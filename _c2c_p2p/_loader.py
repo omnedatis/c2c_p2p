@@ -18,7 +18,6 @@ PK2 = 'prod_code'
 
 
 class _LocalDataProvider:
-    """取得訓練及驗證資料之物件"""
 
     def __init__(self) -> None:
         self._configs: configType = json.load(
@@ -56,15 +55,14 @@ class _LocalDataProvider:
         return data
 
     def _check(self, data: pd.DataFrame, table_name: str) -> pd.DataFrame:
-        int_pat = re.compile(r'[+-]?\d+.?')  # integer pattern
-        float_pat = re.compile(r'[+-]?\d+(\.\d*)?')  # float pattern
+        int_pat = re.compile(r'[+-]?\d+.?')
+        float_pat = re.compile(r'[+-]?\d+(\.\d*)?')
         float_pat2 = re.compile(r'[-+]?([0-9]*[.])?[0-9]+[eE][-+]?\d+')
-        data_pat = (r'(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})'  # !!! date pattern
+        data_pat = (r'(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})'
                     r'(0[1-9]|1[012])'
                     r'(0[1-9]|[1-2][0-9]|3[01])')
         date_pat = re.compile(data_pat)
 
-        # read column by definition (if exists)
         table_info = self._configs[table_name]['table_fields']
         errors = []
         data_col = []
@@ -79,13 +77,11 @@ class _LocalDataProvider:
                 range_ = finfo['range']
                 nullable = finfo['nullable']
 
-                # nan mask
                 if nullable:
                     nan = ~(series == series)
                 else:
                     nan = (series == series)
 
-                # check type with no bounds
                 if dtype == Dtypes.SET.value:
                     result = np.isin(series, range_)
                 elif dtype == Dtypes.STRING.value:
@@ -95,8 +91,6 @@ class _LocalDataProvider:
                         lambda x: bool(date_pat.fullmatch(x)))
                     result = is_date(series.astype('str'))
 
-                # !!!
-                # check type with bounds
                 else:
                     if dtype == Dtypes.INT.value:
                         is_int = np.vectorize(
@@ -111,7 +105,6 @@ class _LocalDataProvider:
                     else:
                         raise RuntimeError(f'data type {dtype} not understood')
 
-                    # check range if types are all correct
                     if np.all(t_result):
                         for key, value in range_.items():
                             if value is not None:
@@ -123,10 +116,8 @@ class _LocalDataProvider:
                                     result = (value < series.astype(cast))
                                 elif key == ValueColumns.RO:
                                     result = (value > series.astype(cast))
-                    # else report type errors
                     else:
                         result = t_result
-                # masking
                 if nullable:
                     err = ~(result | nan)
                 else:
@@ -136,8 +127,6 @@ class _LocalDataProvider:
                     error_col.append(each)
             else:
                 logging.debug(f'Column {each} not in data')
-        # !!!
-        # only summary now
         if np.any(np.array(errors)):
             errors = pd.DataFrame(np.array(errors).T, columns=data_col)
             errors.sum(axis=0).to_csv(f'{OUTPUT_LOC}/{table_name}_errors.csv')
@@ -151,8 +140,6 @@ class _LocalDataProvider:
     def _cast(self, data: pd.DataFrame, table_name: str) -> pd.DataFrame:
 
         table_info = self._configs[table_name]['table_fields']
-        # !!!
-        # change column names, and change types by definitions (if exists)
         new_data = []
         for each in table_info:
             finfo = table_info[each]
@@ -438,7 +425,6 @@ class DataSet:
         y_columns = [i for i in columns if ExtendedColumn(
             *i.split(SPLITER)).label in y]
 
-        # !!!
         step = 10 if training else 1
         xdata, ydata = prod[x_columns].iloc[::step], prod[y_columns].iloc[::step]
         for each in ydata:
@@ -461,7 +447,6 @@ class DataSet:
         y_columns = [i for i in columns if ExtendedColumn(
             *i.split(SPLITER)).label in y]
 
-        # !!!
         step = 10 if training else 1
         xdata, ydata = client[x_columns].iloc[::step,
                                               ], client[y_columns].iloc[::step, ]
@@ -486,7 +471,6 @@ class DataSet:
         y_columns = [i for i in y_columns if ExtendedColumn(
             *i.split(SPLITER)).label in y]
 
-        # !!!
         step = 25 if training else 1
         xdata, ydata = client[x_columns], transaction[y_columns].iloc[::step, ]
         for each in ydata:
@@ -513,7 +497,6 @@ class DataSet:
         y_columns = [i for i in y_columns if ExtendedColumn(
             *i.split(SPLITER)).label in y]
 
-        # !!!
         step = 10 if training else 1
         xdata, ydata = client[y_columns], holdings[y_columns].iloc[::step, ]
         for each in ydata:

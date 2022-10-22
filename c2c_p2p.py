@@ -38,37 +38,29 @@ for i, task in enumerate(tasks):
     logging.info(f'Start on task {task.name}')
     task_begin = datetime.datetime.now()
 
-    # use generator to allow single column join
     func = eval(f'dataset.{task.task}')
     for j, ((x_raw, y_raw), (x_test_raw, y_test_raw)) in enumerate(zip(func(task.x, task.y), func(task.x, task.y, training=False))):
 
         logging.info(f'Start on column {y_raw.name}')
         col_begin = datetime.datetime.now()
 
-        # get target
         target: targetNames = y_test_raw.index.tolist()
         target_features: Dict[targetName, List[featureName]] = {}
 
-        # get data value
         _y_value: np.ndarray = y_raw.values
         _x_value: np.ndarray = x_raw.values
 
-        # remove entries without target
         _x_value: np.ndarray = _x_value[(_y_value == _y_value), :]
         y_value: np.ndarray = _y_value[(_y_value == _y_value)]
 
-        # remove effective columns
         x_value: np.ndarray = _x_value[:,
                                        (_x_value == _x_value).sum(axis=0) != 0]
 
-        # get data column name
         target_features[y_raw.name] = x_raw.columns[(
             _x_value == _x_value).sum(axis=0) != 0].tolist()
 
-        # only estimate when x has non-zero entries, non-zero fields, and y has any entry
         if x_value.shape[0] != 0 and x_value.shape[1] != 0 and y_value.shape[0] != 0:
 
-            # by case estimation
             if ExtendedColumn(*y_raw.name.split(SPLITER)).method == '迴歸':
                 logging.info('Perform regression')
                 pipe = Pipeline(steps=[
@@ -88,24 +80,19 @@ for i, task in enumerate(tasks):
                 pipe.fit(x_value, y_value)
                 logging.info('Training decision tree complete')
 
-                # corresponding feature columns and feature data (test)
                 f_cols = target_features[y_raw.name]
                 x_test = x_test_raw[f_cols]
 
-                # predicted weights (for all entries)
                 class_wieghts = pd.DataFrame(
                     pipe.predict_proba(x_test), index=x_test.index)
 
-                # target column information
                 y_info = ExtendedColumn(*y_raw.name.split(SPLITER))
 
-                # output tree txt
                 tree = export_text(
                     pipe['tree'], feature_names=f_cols, show_weights=True)
                 with open(f'{OUTPUT_LOC}/trees/{y_info.name}_{task.name}.txt', 'w', encoding='utf-8') as f:
                     f.writelines(tree)
 
-                # output result for all entries
                 for k, each_t in enumerate(target):
                     logging.debug((f'Predict task {task.name}: {i+1}/{len(tasks)},'
                                    f' target {j+1},' f' entry {k+1}/{len(target)}'))
