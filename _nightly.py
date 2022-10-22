@@ -7,7 +7,6 @@ Created on Thursday 10 20 22:33:09 2022
 import glob
 import os
 import re
-from tabnanny import verbose
 
 py_files = [i for i in glob.glob('**/*.py', recursive=True) if i.split('\\')[0] != 'env']
 ptn = '''
@@ -42,12 +41,10 @@ for py in py_files:
             if is_docstring:
                 pass
             elif '#' in stripped_line and (not doctring_stack):
-                new_line = each.split('#')[0]
-                if new_line.strip(' '):
-                    new_line = new_line.rstrip(' ')
-                    if new_line[-1] != '\n':
-                        new_line += '\n'
-                    ret.append(new_line)
+                cut = stripped_line[stripped_line.find('#'):]
+                new_line = each[:-len(cut)].rstrip(' ')
+                if new_line:
+                    ret.append(new_line+'\n')
             else:
                 ret.append(each)
     
