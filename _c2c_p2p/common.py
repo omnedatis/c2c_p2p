@@ -1,12 +1,31 @@
 # -*- coding: utf-8 -*-
 from collections import namedtuple
+import os
+import pickle
 from enum import Enum
-from typing import Dict, List, NamedTuple, Union, Optional
+from typing import Callable, Dict, Generator, List, NamedTuple, Union, Optional, Tuple, Any
+
+import pandas as pd
 
 SCHEMA_CONFIG_LOC = './_c2c_p2p/_local_db_config.json'
 OUTPUT_LOC = './_c2c_p2p/_c2c_p2p_out'
 LOG_LOC = OUTPUT_LOC + '/log'
+PK = 'customerid'
+PK2 = 'prod_code'
 
+Task = namedtuple('Task', ['x', 'y', 'name', 'task'])
+
+dataRangeType = Union[Dict[str, Optional[Union[int, float]]], List[int]]
+columnAttrType = Dict[str, Union[str, bool, dataRangeType]]
+tableFieldType = Dict[str, columnAttrType]
+configType = Dict[str, Dict[str, Union[str, tableFieldType]]]
+
+TaskArgType = Union[str, List[str]]
+DataGeneratorType = Callable[[Tuple[TaskArgType, TaskArgType]], Generator[Tuple[pd.DataFrame, pd.Series], Any, None]]
+
+class AlgorithmCodes(str, Enum):
+    REG = 'reg'
+    DTC = 'dtc'
 
 class Dtypes(str, Enum):
     FLOAT = 'float'
@@ -65,12 +84,51 @@ class FieldInfoNames(str, Enum):
     CATE = '组别/原值'
     CATE_CODE = '组别/原值编号'
 
-
-dataRangeType = Union[Dict[str, Optional[Union[int, float]]], List[int]]
-columnAttrType = Dict[str, Union[str, bool, dataRangeType]]
-tableFieldType = Dict[str, columnAttrType]
-configType = Dict[str, Dict[str, Union[str, tableFieldType]]]
-
 SPLITER = '`'
-ExtendedColumn = namedtuple('ExtendedColumn', ['code', 't_name', 'label', 'name', 'method'])
-Task = namedtuple('Task', ['x', 'y', 'name', 'task'])
+class ExtendedColumn(NamedTuple):
+    code:str
+    t_name:str
+    c_name:str
+    label:Optional[str]=None
+    dtype:Optional[Dtypes]=None
+    methods:Optional[Tuple[str]]=None
+    nullable:Optional[bool]=None
+    range:Optional[dataRangeType]=None
+
+    @property
+    def key(self):
+        return SPLITER.join([self.t_name, self.c_name, self.code])
+
+class ColumnManager:
+    
+    COL_MAP = {}
+
+    @classmethod
+    def register(cls, col_code:str, col_info:ExtendedColumn):
+        if col_code in cls.COL_MAP and (not col_code in [PK, PK2]):
+            invalid = False if len(col_info) == len(cls.COL_MAP[col_code]) else True
+            registered = cls.COL_MAP[col_code]
+            for old, new in zip(registered, col_info):
+                invalid &= old != new
+            if invalid:
+                raise RuntimeError(f'inconsistent definition of {col_code} encountered')
+        if not isinstance(col_info, ExtendedColumn):
+            raise TypeError(f'column info can only be of type {type(ExtendedColumn)}')
+        cls.COL_MAP[col_code] = col_info
+    
+    @classmethod
+    def get(cls, code:str) -> ExtendedColumn:
+        if code not in cls.COL_MAP:
+            raise KeyError(f'code {code} not found')
+        return cls.COL_MAP[code]
+
+    @classmethod
+    def dump(cls):
+        pickle.dump(cls.COL_MAP, open(OUTPUT_LOC+'/columns.pkl', 'wb'))
+
+    @classmethod
+    def load(cls):
+        if os.path.isfile(OUTPUT_LOC+'/columns.pkl'):
+            registries:dict = pickle.load(open(OUTPUT_LOC+'/columns.pkl', 'rb'))
+            for key, reg in registries.items():
+                cls.register(key, reg)
