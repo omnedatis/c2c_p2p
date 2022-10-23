@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from collections import namedtuple
+import json
 import os
 import pickle
 from enum import Enum
@@ -126,6 +127,8 @@ class ColumnManager:
     @classmethod
     def dump(cls):
         pickle.dump(cls.COL_MAP, open(OUTPUT_LOC+'/columns.pkl', 'wb'))
+        json.dump(cls.COL_MAP, open(
+            OUTPUT_LOC+'/columns.pkl', 'w', encoding='utf-8'), ensure_ascii=False)
 
     @classmethod
     def load(cls):
