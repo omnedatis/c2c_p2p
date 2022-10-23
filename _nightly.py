@@ -38,7 +38,7 @@ for py in py_files:
                     doctring_stack.pop() 
                 else:
                     pass
-            if is_docstring:
+            if is_docstring or doctring_stack:
                 pass
             elif '#' in stripped_line and (not doctring_stack):
                 cut = stripped_line[stripped_line.find('#'):]
