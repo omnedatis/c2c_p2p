@@ -21,8 +21,8 @@ columnAttrType = Dict[str, Union[str, bool, dataRangeType]]
 tableFieldType = Dict[str, columnAttrType]
 configType = Dict[str, Dict[str, Union[str, tableFieldType]]]
 
-TaskArgType = Union[str, List[str]]
-DataGeneratorType = Callable[[Tuple[TaskArgType, TaskArgType]], Generator[Tuple[pd.DataFrame, pd.Series], Any, None]]
+taskArgType = Union[str, List[str]]
+dataGeneratorType = Callable[[Tuple[taskArgType, taskArgType]], Generator[Tuple[pd.DataFrame, pd.Series], Any, None]]
 
 class AlgorithmCodes(str, Enum):
     REG = 'reg'

@@ -16,7 +16,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_text
 
 from _c2c_p2p import (OUTPUT_LOC, SPLITER, ExtendedColumn, DataSet,
-                      ColumnManager, AlgorithmCodes, Task, DataGeneratorType)
+                      ColumnManager, AlgorithmCodes, Task, dataGeneratorType)
 try:
     dataset = DataSet()
     tasks = [
@@ -42,7 +42,7 @@ try:
         task_begin = datetime.datetime.now()
 
         # use generator to allow single column join
-        func:DataGeneratorType = eval(f'dataset.{task.task}')
+        func:dataGeneratorType = eval(f'dataset.{task.task}')
         for j, ((x_raw, y_raw), (x_test_raw, y_test_raw)) in enumerate(zip(func(task.x, task.y), func(task.x, task.y, training=False))):
 
             logging.info(f'Start on column {y_raw.name}')
