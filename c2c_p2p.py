@@ -24,7 +24,7 @@ try:
         Task(['C_1', 'C_2'], ['C_3'], 'C_1 and C_2 predict C_3', 'c2c_trans'),
         Task(['C_1', 'C_2'], ['C_4'], 'C_1 and C_2 predict C_4', 'c2c_holding'),
         Task(['P_1'], ['P_2', 'P_3', 'P_4'],
-            'P_1 predict P_2 and P_3 and P_4', 'p2p'),
+             'P_1 predict P_2 and P_3 and P_4', 'p2p'),
         Task(['P_1'], ['P_3'], 'P_1 predict P_3', 'p2p'),
         Task(['P_1'], ['P_4'], 'P_1 predict P_4', 'p2p')
     ]
@@ -32,7 +32,7 @@ try:
     featureName = str
     targetName = str
     targetNames = List[targetName]
-    
+
     begin = datetime.datetime.now()
     results = defaultdict(lambda: defaultdict(dict))
     for i, task in enumerate(tasks):
@@ -40,12 +40,13 @@ try:
         logging.info(f'Start on task {task.name}')
         task_begin = datetime.datetime.now()
 
-        # get dataset          
-        func:dataFuncType = eval(f'dataset.{task.task}')
+        # get dataset
+        func: dataFuncType = eval(f'dataset.{task.task}')
         x_raw, y_raw = func(task.x, task.y)
         x_test_raw, y_test_raw = func(task.x, task.y, training=False)
         for j, y_col in enumerate(y_raw):
-            logging.info(f'Start on column {y_raw[y_col].name}')
+            logging.info(f'Start on column {y_raw[y_col].name}'
+                         f' {j+1}/{len(y_raw.columns.tolist())}')
             col_begin = datetime.datetime.now()
 
             # get target
@@ -62,7 +63,7 @@ try:
 
             # remove ineffective columns
             x_value: np.ndarray = _x_value[:,
-                                        (_x_value == _x_value).sum(axis=0) != 0]
+                                           (_x_value == _x_value).sum(axis=0) != 0]
 
             # get data column name
             target_features[y_raw[y_col].name] = x_raw.columns[(
@@ -73,7 +74,7 @@ try:
 
                 # get analysis methods
                 methods = ColumnManager.get(y_raw[y_col].name).methods
-                
+
                 for each_m in methods:
 
                     # by case estimation
@@ -116,7 +117,7 @@ try:
                         # output result for all entries
                         for k, each_t in enumerate(targets):
                             logging.debug((f'Predict task {task.name}: {i+1}/{len(tasks)},'
-                                        f' target {j+1}/{len(y_raw.columns.tolist())},' f' entry {k+1}/{len(targets)}'))
+                                           f' target {j+1}/{len(y_raw.columns.tolist())},' f' entry {k+1}/{len(targets)}'))
                             w = class_wieghts.loc[each_t, ].values
                             if len(w.shape) > 1:
                                 w = w.mean(axis=0)
@@ -125,9 +126,11 @@ try:
                                 + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders]
 
                 col_time = datetime.datetime.now() - col_begin
-                logging.info(f'Column {y_raw[y_col].name} complete, took {col_time}')
+                logging.info(f'Column {y_raw[y_col].name} complete, took {col_time}'
+                             f' {j+1}/{len(y_raw.columns.tolist())}')
             else:
-                logging.info(f'Column {y_raw[y_col].name} skipped for invalid data')
+                logging.info(
+                    f'Column {y_raw[y_col].name} skipped for invalid data')
 
         task_time = datetime.datetime.now() - task_begin
         logging.info(f'Task {task.name} completed, took {task_time}')
