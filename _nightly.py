@@ -50,4 +50,3 @@ for py in py_files:
     
     with open(py, 'w', encoding='utf-8') as f:
         f.writelines(ret)
-        """ ''' """

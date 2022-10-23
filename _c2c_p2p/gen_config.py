@@ -2,13 +2,13 @@
 import logging
 import json
 import traceback
-from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
-from .common import (SCHEMA_CONFIG_LOC, DataCateNames, FieldInfoNames, SchemaTableRefs,
-                    ValueColumns, configType)
+from .common import (SCHEMA_CONFIG_LOC, PK, PK2, DataCateNames, FieldInfoNames,
+                     SchemaTableRefs, ValueColumns, ExtendedColumn, ColumnManager,
+                     AlgorithmCodes, configType)
 try:
     # read all table schema
     configs: configType = {}
@@ -81,9 +81,13 @@ try:
 
             if type_name == DataCateNames.SET:
                 type_ = 'set'
-                range_ = set_defs[field_info.loc[each_f, FieldInfoNames.CATE_CODE]]
+                range_ = set_defs[field_info.loc[each_f,
+                                                 FieldInfoNames.CATE_CODE]]
+                assert len(list(range_)) == len(set(range_)
+                    ), f'got repeated code in {each_f}'
             elif type_name == DataCateNames.VALUE:
-                ret = value_defs[field_info.loc[each_f, FieldInfoNames.CATE_CODE]]
+                ret = value_defs[field_info.loc[each_f,
+                                                FieldInfoNames.CATE_CODE]]
                 type_ = ret['type'].lower()
                 range_ = ret['intervals']
 
@@ -96,18 +100,19 @@ try:
                 raise RuntimeError('undefined nullable value')
 
             # !!!
-            method = '迴歸' if type_ != 'set' else '分類'
+            methods = (AlgorithmCodes.REG,) if type_ != 'set' else (AlgorithmCodes.DTC,)
 
-            table["table_fields"][each_f] = {
+            col_info = ExtendedColumn(**{
                 "t_name": each_t.target_file,
                 "code": each_f,
                 "label": field_info.loc[each_f, FieldInfoNames.LABEL],
-                "name": field_info.loc[each_f, FieldInfoNames.NAME],
+                "c_name": field_info.loc[each_f, FieldInfoNames.NAME],
                 "nullable": nullable,
                 "dtype": type_,
                 "range": range_,
-                "method": method
-            }
+                "methods": methods
+            })
+            table["table_fields"][each_f] = col_info._asdict()
 
         configs[each_t.target_file] = table
 

@@ -5,10 +5,13 @@ import os
 import sys
 import warnings
 
-from .common import OUTPUT_LOC, LOG_LOC, SPLITER, Task, ExtendedColumn
+from .common import (OUTPUT_LOC, LOG_LOC, SPLITER, Task, DataGeneratorType,
+                     ExtendedColumn, ColumnManager, AlgorithmCodes)
 from ._loader import DataSet
 
-__all__ = [OUTPUT_LOC, LOG_LOC, SPLITER, Task, ExtendedColumn, DataSet]
+__all__ = [OUTPUT_LOC, LOG_LOC, SPLITER, Task,
+           DataGeneratorType, ExtendedColumn, DataSet,
+           ColumnManager, AlgorithmCodes]
 
 warnings.filterwarnings("ignore")
 if not os.path.exists(LOG_LOC):
@@ -27,4 +30,4 @@ logging.basicConfig(level=0, format=fmt, handlers=[
                     file_hdlr, info_hdlr], datefmt='%Y-%m-%d %H:%M:%S')
 
 if not os.path.exists('_c2c_p2p/_local_db_config.json'):
-   from .gen_config import *
+    from .gen_config import *
