@@ -86,7 +86,7 @@ try:
                 assert len(list(range_)) == len(set(range_)
                     ), f'got repeated code in {each_f}'
             elif type_name == DataCateNames.VALUE:
-                ret = value_defs[field_info.loc[each_f,
+                ret:str = value_defs[field_info.loc[each_f,
                                                 FieldInfoNames.CATE_CODE]]
                 type_ = ret['type'].lower()
                 range_ = ret['intervals']

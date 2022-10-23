@@ -5,12 +5,12 @@ import os
 import sys
 import warnings
 
-from .common import (OUTPUT_LOC, LOG_LOC, SPLITER, Task, DataGeneratorType,
-                     ExtendedColumn, ColumnManager, AlgorithmCodes)
+from .common import (OUTPUT_LOC, LOG_LOC, SPLITER, Task, dataGeneratorType,
+                     dataFuncType,ExtendedColumn, ColumnManager, AlgorithmCodes)
 from ._loader import DataSet
 
 __all__ = [OUTPUT_LOC, LOG_LOC, SPLITER, Task,
-           DataGeneratorType, ExtendedColumn, DataSet,
+           dataGeneratorType, dataFuncType, ExtendedColumn, DataSet,
            ColumnManager, AlgorithmCodes]
 
 warnings.filterwarnings("ignore")
