@@ -23,14 +23,14 @@ file_hdlr.setLevel(logging.INFO)
 logging.basicConfig(level=0, format=fmt, handlers=[
                     file_hdlr, info_hdlr], datefmt='%Y-%m-%d %H:%M:%S')
 
-from .common import (SPLITER, Task, dataGeneratorType,
+from .common import (SPLITER, Task, dataGeneratorType, dataFuncType,
                      ExtendedColumn, ColumnManager, AlgorithmCodes)
 from ._loader import DataSet
 
 if not os.path.exists('_c2c_p2p/_local_db_config.json'):
     from .gen_config import *
 
-__all__ = [OUTPUT_LOC, LOG_LOC, SPLITER, Task,
+__all__ = [OUTPUT_LOC, LOG_LOC, SPLITER, Task, dataFuncType,
            dataGeneratorType, ExtendedColumn, DataSet,
            ColumnManager, AlgorithmCodes]
 
