@@ -120,7 +120,7 @@ try:
                             if len(w.shape) > 1:
                                 w = w.mean(axis=0)
                             orders = np.argsort(w)[::-1]
-                            results[each_t][task.name][y_info.code] = [y_info.t_name, y_info.c_name] \
+                            results[each_t][task.name][y_info.code] = [y_info.table, y_info.column] \
                                 + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders]
 
                 col_time = datetime.datetime.now() - col_begin
