@@ -35,10 +35,6 @@ class BufferList:
     def _run(self):
         try:
             while True:
-                logging.info(len(self._buffer))
-                logging.info('b')
-                logging.info(len(self._write_stack))
-                logging.info('w')
                 if len(self._buffer) > BATCH_SIZE:
                     self._lock.acquire()
                     self._write_stack.append(self._buffer[:BATCH_SIZE])
@@ -53,7 +49,7 @@ class BufferList:
         try:
             while True:
                 if self._write_stack:
-                    logging.info('jkjkj')
+                    logging.debug(f'writing data {self._count}~{self._count+BATCH_SIZE-1}')
                     lines = pd.DataFrame(self._write_stack.pop(0))
                     lines.to_csv(
                         f'{OUTPUT_LOC}/_temp_file/{self._count}~{self._count+BATCH_SIZE-1}.csv', encoding='utf-8-sig')
