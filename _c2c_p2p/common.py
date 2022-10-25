@@ -24,6 +24,8 @@ configType = Dict[str, Dict[str, Union[str, tableFieldType]]]
 
 taskArgType = Union[str, List[str]]
 dataGeneratorType = Callable[[Tuple[taskArgType, taskArgType]], Generator[Tuple[pd.DataFrame, pd.Series], Any, None]]
+dataFuncType = Callable[[Tuple[taskArgType, taskArgType]], Tuple[pd.DataFrame, pd.DataFrame]]
+
 
 class AlgorithmCodes(str, Enum):
     REG = 'reg'
