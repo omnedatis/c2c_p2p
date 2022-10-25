@@ -11,7 +11,7 @@ import pandas as pd
 
 from .common import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, SPLITER, PK, PK2, ValueColumns,
                      SchemaTableRefs, TableNames, Dtypes, DataCateNames,
-                     ExtendedColumn, ColumnManager, configType)
+                     ExtendedColumn, ColumnManager, SetCode, configType)
 
 
 class _LocalDataProvider:
@@ -83,7 +83,7 @@ class _LocalDataProvider:
 
                 # check type with no bounds
                 if dtype == Dtypes.SET.value:
-                    result = np.isin(series, range_)
+                    result = np.isin(series, [int(i) for i in range_.values()])
                 elif dtype == Dtypes.STRING.value:
                     result = np.full(series.shape, True)
                 elif dtype == Dtypes.DATE.value:
@@ -156,31 +156,32 @@ class _LocalDataProvider:
             if ex_col.code in data.columns:
                 if ex_col.dtype == Dtypes.INT.value:
                     new_data.append(data[each].astype(
-                        'float32').rename(ex_col.key))
-                    ColumnManager.register(ex_col.key, ex_col)
+                        'float32').rename(ex_col.name))
+                    ColumnManager.register(ex_col.name, ex_col)
                 elif ex_col.dtype == Dtypes.FLOAT.value:
                     new_data.append(data[each].astype(
-                        'float32').rename(ex_col.key))
-                    ColumnManager.register(ex_col.key, ex_col)
+                        'float32').rename(ex_col.name))
+                    ColumnManager.register(ex_col.name, ex_col)
                 elif ex_col.dtype == Dtypes.SET.value:
-                    cols: np.ndarray = np.array(ex_col.range)
+                    s_name_map = SetCode(table_name, ex_col.column, ex_col.range)
+                    cols: np.ndarray = np.array(s_name_map.values)
                     values = data[each].values
                     one_hot = np.full((values.shape[0], cols.shape[0]), 0)
                     values, cols = np.ix_(values, cols)
                     one_hot[values == cols] = 1
                     names = [ExtendedColumn(**{
-                        'code':ex_col.code+f'_{i}',
-                        't_name':ex_col.t_name,
-                        'c_name':ex_col.c_name+f'_{DataCateNames.SET}{i}',
+                        'code':ex_col.code+f'_{s_name_map[i]}',
+                        'table':ex_col.table,
+                        'column':ex_col.column+f'_{i}',
                         'label':ex_col.label,
                         'nullable':ex_col.nullable,
                         "dtype": 'integer',
-                        "range": [0, 1],
+                        "range": {'N':0, 'Y':1},
                         "methods": ex_col.methods
-                    }) for i in ex_col.range]
+                    }) for i in s_name_map.keys]
                     for n in names:
-                        ColumnManager.register(n.key, n)
-                    names = [i.key for i in names]
+                        ColumnManager.register(n.name, n)
+                    names = [i.name for i in names]
                     new_data.append(pd.DataFrame(
                         one_hot, columns=names).astype('float32'))
                 elif ex_col.code in [PK, PK2]:
@@ -193,7 +194,8 @@ class _LocalDataProvider:
         return pd.concat(new_data, axis=1)
 
 
-class _RandomDataProvider:
+class _RandomDataProvider(_LocalDataProvider):
+
     def __init__(self, train_table_sizes: Optional[Dict[Union[str, TableNames], int]] = None,
                  valid_table_sizes: Optional[Dict[Union[str, TableNames], int]] = None,
                  random_id: Optional[bool] = None) -> None:
@@ -211,15 +213,15 @@ class _RandomDataProvider:
         if train_table_sizes is not None:
             self._train_table_sizes = train_table_sizes
         self._valid_table_sizes = {
-            TableNames.CLIENT_TPYE: 248000,
-            TableNames.CLIENT_HODING: 619000,
-            TableNames.CLIENT_TRANS: 3540000,
-            TableNames.PROD_INFO: 550
+            TableNames.CLIENT_TPYE: 2480,
+            TableNames.CLIENT_HODING: 6190,
+            TableNames.CLIENT_TRANS: 35400,
+            TableNames.PROD_INFO: 55
         }
         if valid_table_sizes is not None:
             self._valid_table_sizes = valid_table_sizes
 
-    def get_data(self, training: Optional[bool] = True, write_local: Optional[bool] = False):
+    def get_data(self, training: Optional[bool] = True, write_local: Optional[bool] = False) -> pd.DataFrame:
 
         is_training = 'train' if training else 'validate'
         if not os.path.isdir(f'{OUTPUT_LOC}/random_{is_training}') and write_local:
@@ -227,19 +229,20 @@ class _RandomDataProvider:
 
         ret = {}
         for table_name in self._configs:
-            logging.debug(f'Generating data for {table_name}')
-            if os.path.isfile(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv'):
-                data = pd.read_csv(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv',
-                                   header=0, encoding='utf-8-sig')
+            logging.info(f'Generating random data for {table_name}')
+            if os.path.isfile(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl'):
+                data = pickle.load(open(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl', 'rb'))
             else:
                 sizes = self._train_table_sizes[table_name] if training else self._valid_table_sizes[table_name]
                 data: pd.DataFrame = self.gen_random_sample(
                     table_name, sizes, self._random_id)
+                data = self._cast(data, table_name)
+                pickle.dump(data, open(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl', 'wb'))
                 data.to_csv(
                     f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv', encoding='utf-8-sig')
 
             ret[table_name] = data
-            logging.info(f'Generating data {table_name} complete')
+            logging.info(f'Generating random data {table_name} complete')
         return ret
 
     def gen_random_sample(self, table_name: str, sample_size: int,
@@ -281,7 +284,7 @@ class _RandomDataProvider:
                 ret[f_name] = np.random.randint(left, right, sample_size)
             elif dtype == Dtypes.SET.value:
                 set_ = finfo['range']
-                ret[f_name] = np.random.choice(set_, sample_size, replace=True)
+                ret[f_name] = np.random.choice(list(set_.values()), sample_size, replace=True)
             elif finfo['code'] == PK:
                 if random_id:
                     sample_id = np.array(

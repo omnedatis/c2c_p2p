@@ -58,8 +58,8 @@ try:
             _x_value: np.ndarray = x_raw.values
 
             # remove entries without target
-            _x_value: np.ndarray = _x_value[(_y_value == _y_value), :]
-            y_value: np.ndarray = _y_value[(_y_value == _y_value)]
+            x_value: np.ndarray = x_value[(y_value == y_value), :]
+            y_value: np.ndarray = y_value[(y_value == y_value)]
 
             # remove ineffective columns
             x_value: np.ndarray = _x_value[:,
@@ -111,7 +111,7 @@ try:
                         # output tree txt
                         tree = export_text(
                             pipe['tree'], feature_names=f_cols, show_weights=True)
-                        with open(f'{OUTPUT_LOC}/trees/{y_info.c_name}_{task.name}.txt', 'w', encoding='utf-8') as f:
+                        with open(f'{OUTPUT_LOC}/trees/{y_info.code}_{task.name}.txt', 'w', encoding='utf-8') as f:
                             f.writelines(tree)
 
                         # output result for all entries
@@ -122,7 +122,7 @@ try:
                             if len(w.shape) > 1:
                                 w = w.mean(axis=0)
                             orders = np.argsort(w)[::-1]
-                            results[each_t][task.name][y_info.code] = [y_info.t_name, y_info.c_name] \
+                            results[each_t][task.name][y_info.code] = [y_info.table, y_info.column] \
                                 + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders]
 
                 col_time = datetime.datetime.now() - col_begin

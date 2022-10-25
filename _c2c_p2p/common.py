@@ -13,10 +13,11 @@ OUTPUT_LOC = './_c2c_p2p/_c2c_p2p_out'
 LOG_LOC = OUTPUT_LOC + '/log'
 PK = 'customerid'
 PK2 = 'prod_code'
+SPLITER = '`'
 
 Task = namedtuple('Task', ['x', 'y', 'name', 'task'])
 
-dataRangeType = Union[Dict[str, Optional[Union[int, float]]], List[int]]
+dataRangeType = Dict[str, Optional[Union[int, float]]]
 columnAttrType = Dict[str, Union[str, bool, dataRangeType]]
 tableFieldType = Dict[str, columnAttrType]
 configType = Dict[str, Dict[str, Union[str, tableFieldType]]]
@@ -86,20 +87,79 @@ class FieldInfoNames(str, Enum):
     CATE = '组别/原值'
     CATE_CODE = '组别/原值编号'
 
-SPLITER = '`'
+
+class SetCode(NamedTuple):
+    table:str
+    column:str
+    s_dict:dict
+
+    @property
+    def name(self):
+        return SPLITER.join([self.table, self.column])
+    
+    @property
+    def keys(self):
+        return list(self.s_dict.keys())
+
+    @property
+    def values(self):
+        return list(self.s_dict.values())
+
+    def __getitem__(self, key):
+        return self.s_dict[key]
+
+
+class SetCodeManager:
+     
+    CS_MAP = {}
+
+    @classmethod
+    def register(cls, set_code:str, set_info:SetCode):
+        if set_code in cls.CS_MAP:
+            invalid = False if len(set_info) == len(cls.COL_MAP[set_code]) else True
+            registered = cls.CS_MAP[set_code]
+            for old, new in zip(registered, set_info):
+                invalid &= old != new
+            if invalid:
+                raise RuntimeError(f'inconsistent definition of {set_code} encountered')
+        if not isinstance(set_info, ExtendedColumn):
+            raise TypeError(f'column info can only be of type {type(ExtendedColumn)}')
+        cls.CS_MAP[set_code] = set_info
+
+    @classmethod
+    def get(cls, code:str) -> SetCode:
+        if code not in cls.CS_MAP:
+            raise KeyError(f'code {code} not found')
+        return cls.CS_MAP[code]
+
+    @classmethod
+    def dump(cls):
+        pickle.dump(cls.CS_MAP, open(OUTPUT_LOC+'/columnsets.pkl', 'wb'))
+        json.dump(cls.CS_MAP, open(
+            OUTPUT_LOC+'/columnsets.json', 'w', encoding='utf-8'), ensure_ascii=False)
+
+    @classmethod
+    def load(cls):
+        if os.path.isfile(OUTPUT_LOC+'/columnsets.pkl'):
+            registries:dict = pickle.load(open(OUTPUT_LOC+'/columnsets.pkl', 'rb'))
+            for key, reg in registries.items():
+                cls.register(key, reg)
+
+
 class ExtendedColumn(NamedTuple):
     code:str
-    t_name:str
-    c_name:str
+    table:str
+    column:str
     label:Optional[str]=None
     dtype:Optional[Dtypes]=None
     methods:Optional[Tuple[str]]=None
     nullable:Optional[bool]=None
-    range:Optional[dataRangeType]=None
+    range:Optional[dataRangeType]=None # comparison may cause issues
 
     @property
-    def key(self):
-        return SPLITER.join([self.t_name, self.c_name, self.code])
+    def name(self):
+        return SPLITER.join([self.table, self.column, self.code])
+
 
 class ColumnManager:
     
