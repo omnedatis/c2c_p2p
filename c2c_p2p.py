@@ -15,7 +15,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_text
 
-from _c2c_p2p import (OUTPUT_LOC, DataSet, ColumnManager, AlgorithmCodes,
+from _c2c_p2p import (OUTPUT_LOC, DataSet, ColumnManager, AlgorithmCodes, BufferList,
                       Task, dataGeneratorType)
 try:
     dataset = DataSet()
@@ -33,7 +33,7 @@ try:
     targetNames = List[targetName]
 
     begin = datetime.datetime.now()
-    results = defaultdict(lambda: defaultdict(dict))
+    results = BufferList()
     for i, task in enumerate(tasks):
 
         logging.info(f'Start on task {task.name}')
@@ -120,8 +120,8 @@ try:
                             if len(w.shape) > 1:
                                 w = w.mean(axis=0)
                             orders = np.argsort(w)[::-1]
-                            results[each_t][task.name][y_info.code] = [y_info.table, y_info.column] \
-                                + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders]
+                            results.append([each_t, task.name, y_info.code, y_info.table, y_info.column] \
+                                + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders])
 
                 col_time = datetime.datetime.now() - col_begin
                 logging.info(f'Column {y_raw.name} complete, took {col_time}')
