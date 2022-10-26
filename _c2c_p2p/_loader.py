@@ -163,27 +163,30 @@ class _LocalDataProvider:
                         'float32').rename(ex_col.name))
                     ColumnManager.register(ex_col.name, ex_col)
                 elif ex_col.dtype == Dtypes.SET.value:
-                    s_name_map = SetCode(table_name, ex_col.column, ex_col.range)
+                    ColumnManager.register(ex_col.name, ex_col)
+                    s_name_map = SetCode(
+                        table_name, ex_col.column, ex_col.range)
                     cols: np.ndarray = np.array(s_name_map.values)
                     values = data[each].values
                     one_hot = np.full((values.shape[0], cols.shape[0]), 0)
                     values, cols = np.ix_(values, cols)
                     one_hot[values == cols] = 1
                     names = [ExtendedColumn(**{
-                        'code':ex_col.code+f'_{s_name_map[i]}',
-                        'table':ex_col.table,
-                        'column':ex_col.column+f'_{i}',
-                        'label':ex_col.label,
-                        'nullable':ex_col.nullable,
+                        'code': ex_col.code+f'_{s_name_map[i]}',
+                        'table': ex_col.table,
+                        'column': ex_col.column+f'_{i}',
+                        'label': ex_col.label,
+                        'nullable': ex_col.nullable,
                         "dtype": 'integer',
-                        "range": {'N':0, 'Y':1},
-                        "methods": ex_col.methods
+                        "range": {'N': 0, 'Y': 1},
+                        "methods": ex_col.methods,
+                        "transforms": ("onehot",)
                     }) for i in s_name_map.keys]
                     for n in names:
                         ColumnManager.register(n.name, n)
                     names = [i.name for i in names]
-                    new_data.append(pd.DataFrame(
-                        one_hot, columns=names).astype('float32'))
+                    new_data.append(pd.DataFrame(np.concatenate(
+                        [one_hot, values], axis=1), columns=names+[ex_col.name]).astype('float32'))
                 elif ex_col.code in [PK, PK2]:
                     new_data.append(data[each].astype('str'))
                     ColumnManager.register(ex_col.code, ex_col)
@@ -197,7 +200,8 @@ class _LocalDataProvider:
 class _RandomDataProvider(_LocalDataProvider):
 
     def __init__(self, train_table_sizes: Optional[Dict[Union[str, TableNames], int]] = None,
-                 valid_table_sizes: Optional[Dict[Union[str, TableNames], int]] = None,
+                 valid_table_sizes: Optional[Dict[Union[str,
+                                                        TableNames], int]] = None,
                  random_id: Optional[bool] = None) -> None:
         self._configs: configType = json.load(
             open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))
@@ -231,13 +235,15 @@ class _RandomDataProvider(_LocalDataProvider):
         for table_name in self._configs:
             logging.info(f'Generating random data for {table_name}')
             if os.path.isfile(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl'):
-                data = pickle.load(open(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl', 'rb'))
+                data = pickle.load(
+                    open(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl', 'rb'))
             else:
                 sizes = self._train_table_sizes[table_name] if training else self._valid_table_sizes[table_name]
                 data: pd.DataFrame = self.gen_random_sample(
                     table_name, sizes, self._random_id)
                 data = self._cast(data, table_name)
-                pickle.dump(data, open(f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl', 'wb'))
+                pickle.dump(data, open(
+                    f'{OUTPUT_LOC}/random_{is_training}/{table_name}.pkl', 'wb'))
                 data.to_csv(
                     f'{OUTPUT_LOC}/random_{is_training}/{table_name}.csv', encoding='utf-8-sig')
 
@@ -284,7 +290,8 @@ class _RandomDataProvider(_LocalDataProvider):
                 ret[f_name] = np.random.randint(left, right, sample_size)
             elif dtype == Dtypes.SET.value:
                 set_ = finfo['range']
-                ret[f_name] = np.random.choice(list(set_.values()), sample_size, replace=True)
+                ret[f_name] = np.random.choice(
+                    list(set_.values()), sample_size, replace=True)
             elif finfo['code'] == PK:
                 if random_id:
                     sample_id = np.array(
@@ -338,10 +345,9 @@ class DataSet:
         prod = prod.set_index(PK2)
 
         columns = [i for i in prod.columns.tolist() if i != PK]
-        x_columns = [i for i in columns if ExtendedColumn(
-            *i.split(SPLITER)).label in x]
-        y_columns = [i for i in columns if ExtendedColumn(
-            *i.split(SPLITER)).label in y]
+        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
         return prod[x_columns], prod[y_columns]
 
     def c2c(self, x: Union[str, list], y: Union[str, list],
@@ -370,7 +376,8 @@ class DataSet:
         columns = [i for i in ret.columns.tolist() if i != PK2 and i !=
                    PK+'_' and i != PK2+'_']
         x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         return ret[x_columns], ret[y_columns]
 
@@ -391,7 +398,8 @@ class DataSet:
 
         columns = [i for i in client.columns.tolist()]
         x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         return client[x_columns], client[y_columns]
 
@@ -411,12 +419,14 @@ class DataSet:
         transactions: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TRANS.target_file]
         client: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TPYE.target_file]
 
-        ret = transactions.merge(client, on=PK, how='inner', suffixes=('', '_'))
+        ret = transactions.merge(
+            client, on=PK, how='inner', suffixes=('', '_'))
         ret = ret.set_index(PK)
 
         columns = [i for i in ret.columns.tolist() if i != PK2 and i != PK+'_']
         x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         return ret[x_columns], ret[y_columns]
 
@@ -441,7 +451,8 @@ class DataSet:
 
         columns = [i for i in ret.columns.tolist() if i != PK2 and i != PK+'_']
         x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         return ret[x_columns], ret[y_columns]
 
@@ -462,7 +473,8 @@ class DataSet:
 
         columns = [i for i in prod.columns.tolist() if i != PK]
         x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         # !!!
         step = 10 if training else 1
@@ -487,7 +499,8 @@ class DataSet:
 
         columns = [i for i in client.columns.tolist()]
         x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         # !!!
         step = 10 if training else 1
@@ -515,7 +528,8 @@ class DataSet:
         x_columns = [i for i in client.columns.tolist()]
         x_columns = [i for i in x_columns if ColumnManager.get(i).label in x]
         y_columns = [i for i in transaction.columns.tolist() if i != PK2]
-        y_columns = [i for i in y_columns if ColumnManager.get(i).label in x]
+        y_columns = [i for i in y_columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         # !!!
         step = 25 if training else 1
@@ -547,7 +561,8 @@ class DataSet:
         x_columns = [i for i in client.columns.tolist()]
         x_columns = [i for i in x_columns if ColumnManager.get(i).label in x]
         y_columns = [i for i in holdings.columns.tolist() if i != PK2]
-        y_columns = [i for i in y_columns if ColumnManager.get(i).label in x]
+        y_columns = [i for i in y_columns if ColumnManager.get(i).label in y
+                     and (ColumnManager.get(i).transforms is not None)]
 
         # !!!
         step = 10 if training else 1
@@ -567,7 +582,8 @@ class RandomDataSet(DataSet):
 
         self._loader = _RandomDataProvider(train_table_size, valid_table_size)
         self._training = self._loader.get_data(training=True, write_local=True)
-        self._validate = self._loader.get_data(training=False, write_local=True)
+        self._validate = self._loader.get_data(
+            training=False, write_local=True)
         self._current = self._training
         self._configs = json.load(
             open(SCHEMA_CONFIG_LOC, 'r', encoding='utf-8'))

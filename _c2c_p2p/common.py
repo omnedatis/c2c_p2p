@@ -156,6 +156,7 @@ class ExtendedColumn(NamedTuple):
     methods:Optional[Tuple[str]]=None
     nullable:Optional[bool]=None
     range:Optional[dataRangeType]=None # comparison may cause issues
+    transforms:Optional[Tuple[str]]=None
 
     @property
     def name(self):
