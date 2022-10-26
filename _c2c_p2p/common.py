@@ -8,8 +8,8 @@ from typing import Callable, Dict, Generator, List, NamedTuple, Union, Optional,
 
 import pandas as pd
 
-SCHEMA_CONFIG_LOC = './_c2c_p2p/_local_db_config.json'
 OUTPUT_LOC = './_c2c_p2p/_c2c_p2p_out'
+SCHEMA_CONFIG_LOC = OUTPUT_LOC + '/_local_db_config.json'
 LOG_LOC = OUTPUT_LOC + '/log'
 PK = 'customerid'
 PK2 = 'prod_code'
@@ -90,24 +90,25 @@ class FieldInfoNames(str, Enum):
 
 
 class SetCode(NamedTuple):
+    code:str
     table:str
     column:str
-    s_dict:dict
+    setmap:Dict[str, int]
 
     @property
     def name(self):
-        return SPLITER.join([self.table, self.column])
+        return SPLITER.join([self.table, self.column, self.code])
     
     @property
     def keys(self):
-        return list(self.s_dict.keys())
-
+        return list(self.setmap.keys())
+    
     @property
     def values(self):
-        return list(self.s_dict.values())
-
-    def __getitem__(self, key):
-        return self.s_dict[key]
+        return list(self.setmap.values())
+    
+    def decode(self, key):
+        return {v:k for k, v in self.setmap.items()}[key]
 
 
 class SetCodeManager:
@@ -117,14 +118,14 @@ class SetCodeManager:
     @classmethod
     def register(cls, set_code:str, set_info:SetCode):
         if set_code in cls.CS_MAP:
-            invalid = False if len(set_info) == len(cls.COL_MAP[set_code]) else True
+            invalid = False if len(set_info) == len(cls.CS_MAP[set_code]) else True
             registered = cls.CS_MAP[set_code]
             for old, new in zip(registered, set_info):
                 invalid &= old != new
             if invalid:
                 raise RuntimeError(f'inconsistent definition of {set_code} encountered')
-        if not isinstance(set_info, ExtendedColumn):
-            raise TypeError(f'column info can only be of type {type(ExtendedColumn)}')
+        if not isinstance(set_info, SetCode):
+            raise TypeError(f'column info can only be of type {SetCode}')
         cls.CS_MAP[set_code] = set_info
 
     @classmethod
@@ -144,7 +145,7 @@ class SetCodeManager:
         if os.path.isfile(OUTPUT_LOC+'/columnsets.pkl'):
             registries:dict = pickle.load(open(OUTPUT_LOC+'/columnsets.pkl', 'rb'))
             for key, reg in registries.items():
-                cls.register(key, reg)
+                cls.register(key, reg)   
 
 
 class ExtendedColumn(NamedTuple):
@@ -177,7 +178,7 @@ class ColumnManager:
             if invalid:
                 raise RuntimeError(f'inconsistent definition of {col_code} encountered')
         if not isinstance(col_info, ExtendedColumn):
-            raise TypeError(f'column info can only be of type {type(ExtendedColumn)}')
+            raise TypeError(f'column info can only be of type {ExtendedColumn}')
         cls.COL_MAP[col_code] = col_info
     
     @classmethod

@@ -5,7 +5,7 @@ import os
 import sys
 import warnings
 
-from .common import LOG_LOC, OUTPUT_LOC
+from .common import LOG_LOC, OUTPUT_LOC, SCHEMA_CONFIG_LOC
 
 warnings.filterwarnings("ignore")
 if not os.path.exists(LOG_LOC):
@@ -26,15 +26,15 @@ logging.basicConfig(level=0, format=fmt, handlers=[
                     file_hdlr, info_hdlr], datefmt='%Y-%m-%d %H:%M:%S')
 
 from .common import (SPLITER, Task, dataGeneratorType, dataFuncType,
-                     ExtendedColumn, ColumnManager, AlgorithmCodes)
+                     ExtendedColumn, ColumnManager, AlgorithmCodes, SetCodeManager)
 from ._loader import DataSet
 from .utils import BufferList
 
-if not os.path.exists('_c2c_p2p/_local_db_config.json'):
+if not os.path.exists(SCHEMA_CONFIG_LOC):
     from .gen_config import *
 
 __all__ = [OUTPUT_LOC, LOG_LOC, SPLITER, Task, dataFuncType,
            dataGeneratorType, ExtendedColumn, DataSet,
-           ColumnManager, AlgorithmCodes, BufferList]
+           ColumnManager, AlgorithmCodes, BufferList, SetCodeManager]
 
 
