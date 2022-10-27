@@ -16,7 +16,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_text
 
 from _c2c_p2p import (OUTPUT_LOC, DataSet, ColumnManager, AlgorithmCodes, BufferList,
-                      Task, dataGeneratorType)
+                      SetCodeManager, Task, dataGeneratorType)
 try:
     dataset = DataSet()
     tasks = [
@@ -99,14 +99,20 @@ try:
                             f.writelines(tree)
 
                         for k, each_t in enumerate(targets):
-                            logging.debug((f'Predict task {task.name}: {i+1}/{len(tasks)},'
-                                           f' target {j+1},' f' entry {k+1}/{len(targets)}'))
+                            logging.debug((f'Predict task {task.name}:' 
+                                           f'{i+1}/{len(tasks)},'
+                                           f' target {j+1},' 
+                                           f' entry {k+1}/{len(targets)}'))
                             w = class_wieghts.loc[each_t, ].values
                             if len(w.shape) > 1:
                                 w = w.mean(axis=0)
                             orders = np.argsort(w)[::-1]
-                            results.append([each_t, task.name, y_info.code, y_info.table, y_info.column] \
-                                + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders])
+                            decoder = SetCodeManager.get(y_info.name).decode
+                            line = [each_t, task.name, y_info.code, y_info.table, 
+                                y_info.column]
+                            line += [f'{decoder(pipe["tree"].classes_[o])}'
+                                f'({round(w[o], 2)}%)' for o in orders]
+                            results.append(line)
 
                 col_time = datetime.datetime.now() - col_begin
                 logging.info(f'Column {y_raw.name} complete, took {col_time}')

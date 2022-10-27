@@ -8,7 +8,7 @@ import traceback
 import numpy as np
 import pandas as pd
 
-from .common import (SCHEMA_CONFIG_LOC, DataCateNames, FieldInfoNames,
+from _c2c_p2p import (SCHEMA_CONFIG_LOC, DataCateNames, FieldInfoNames,
                      SchemaTableRefs, ValueColumns, AlgorithmCodes, configType)
 try:
     configs: configType = {}
