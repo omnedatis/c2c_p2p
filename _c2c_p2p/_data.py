@@ -9,7 +9,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from .common import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, PK, PK2, ValueColumns,
+from _c2c_p2p import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, PK, PK2, ValueColumns,
                      SchemaTableRefs, TableNames, Dtypes, SetCodeManager,
                      ExtendedColumn, ColumnManager, SetCode, configType)
 
