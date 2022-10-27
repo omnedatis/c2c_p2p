@@ -14,6 +14,18 @@ from _c2c_p2p import (OUTPUT_LOC, SCHEMA_CONFIG_LOC, PK, PK2, ValueColumns,
                      ExtendedColumn, ColumnManager, SetCode, configType)
 
 
+def _str_to_list(*args):
+    ret  = []
+    for each in args:
+        if isinstance(each, list):
+            ret.append(each)
+        elif not isinstance(each, str):
+            raise TypeError(f'str to list cannot accept type {type(each)}')
+        else:
+            ret.append([each])
+    return tuple(*ret)
+
+
 class _LocalDataProvider:
 
     def __init__(self) -> None:
@@ -321,28 +333,25 @@ class DataSet:
         else:
             self._current = self._validate
 
-    def p2p(self, x: Union[str, list], y: Union[str, list],
+    def p2p(self, features: Union[str, list], targets: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of products
         tables:
             product (产品类): PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         prod: pd.DataFrame = self._current[SchemaTableRefs.PROD_INFO.target_file]
         prod = prod.set_index(PK2)
 
         columns = [i for i in prod.columns.tolist() if i != PK]
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
         return prod[x_columns], prod[y_columns]
 
-    def c2c(self, x: Union[str, list], y: Union[str, list],
+    def c2c(self, features: Union[str, list], targets: Union[str, list],
             training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of all client data.
         tables:
@@ -350,10 +359,7 @@ class DataSet:
             transctions (客户交易): PK (customerid) PK2 (prod_code)
             holdings (客户持仓): PK (customerid) PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         transactions: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TRANS.target_file]
@@ -367,45 +373,39 @@ class DataSet:
 
         columns = [i for i in ret.columns.tolist() if i != PK2 and i !=
                    PK+'_' and i != PK2+'_']
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         return ret[x_columns], ret[y_columns]
 
-    def c2c_client(self, x: Union[str, list], y: Union[str, list],
+    def c2c_client(self, features: Union[str, list], targets: Union[str, list],
                    training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of basic features of clients.
         tables:
             client (客户类别): PK (customerid)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         client: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TPYE.target_file]
         client = client.set_index(PK)
 
         columns = [i for i in client.columns.tolist()]
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         return client[x_columns], client[y_columns]
 
-    def c2c_trans(self, x: Union[str, list], y: Union[str, list],
+    def c2c_trans(self, features: Union[str, list], targets: Union[str, list],
                   training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of client transactions.
         tables:
             client (客户类别): PK (customerid)
             transctions (客户交易): PK (customerid) PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         transactions: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TRANS.target_file]
@@ -416,23 +416,20 @@ class DataSet:
         ret = ret.set_index(PK)
 
         columns = [i for i in ret.columns.tolist() if i != PK2 and i != PK+'_']
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         return ret[x_columns], ret[y_columns]
 
-    def c2c_holding(self, x: Union[str, list], y: Union[str, list],
+    def c2c_holding(self, features: Union[str, list], targets: Union[str, list],
                     training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of client holdings.
         tables:
             client (客户类别): PK (customerid)
             holdings (客户持仓): PK (customerid) PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         holdings: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_HODING.target_file]
@@ -442,30 +439,27 @@ class DataSet:
         ret = ret.set_index(PK)
 
         columns = [i for i in ret.columns.tolist() if i != PK2 and i != PK+'_']
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         return ret[x_columns], ret[y_columns]
 
-    def gen_p2p(self, x: Union[str, list], y: Union[str, list],
+    def gen_p2p(self, features: Union[str, list], targets: Union[str, list],
                 training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of products using generator.
         tables:
             product (产品类): PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         prod: pd.DataFrame = self._current[SchemaTableRefs.PROD_INFO.target_file]
         prod = prod.set_index(PK2)
 
         columns = [i for i in prod.columns.tolist() if i != PK]
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         # !!!
@@ -474,24 +468,21 @@ class DataSet:
         for each in ydata:
             yield xdata, ydata[each]
 
-    def gen_c2c_client(self, x: Union[str, list], y: Union[str, list],
+    def gen_c2c_client(self, features: Union[str, list], targets: Union[str, list],
                        training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of basic features of clients using generator.
         tables:
             client (客户类别): PK (customerid)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         client: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TPYE.target_file]
         client = client.set_index(PK)
 
         columns = [i for i in client.columns.tolist()]
-        x_columns = [i for i in columns if ColumnManager.get(i).label in x]
-        y_columns = [i for i in columns if ColumnManager.get(i).label in y
+        x_columns = [i for i in columns if ColumnManager.get(i).label in features]
+        y_columns = [i for i in columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         # !!!
@@ -500,26 +491,23 @@ class DataSet:
         for each in ydata:
             yield xdata, ydata[each]
 
-    def gen_c2c_trans(self, x: Union[str, list], y: Union[str, list],
+    def gen_c2c_trans(self, features: Union[str, list], targets: Union[str, list],
                       training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of client transactions using generator.
         tables:
             client (客户类别): PK (customerid)
             transctions (客户交易): PK (customerid) PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         transaction: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TRANS.target_file]
         client: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TPYE.target_file]
 
         x_columns = [i for i in client.columns.tolist()]
-        x_columns = [i for i in x_columns if ColumnManager.get(i).label in x]
+        x_columns = [i for i in x_columns if ColumnManager.get(i).label in features]
         y_columns = [i for i in transaction.columns.tolist() if i != PK2]
-        y_columns = [i for i in y_columns if ColumnManager.get(i).label in y
+        y_columns = [i for i in y_columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         # !!!
@@ -532,26 +520,23 @@ class DataSet:
                 x_col = [i for i in data if i != each]
                 yield data[x_col], data[each]
 
-    def gen_c2c_holding(self, x: Union[str, list], y: Union[str, list],
+    def gen_c2c_holding(self, features: Union[str, list], targets: Union[str, list],
                         training: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Get dataset for analysis of features of client holdings using generator.
         tables:
             client (客户类别): PK (customerid)
             holdings (客户持仓): PK (customerid) PK2 (prod_code)
         """
-        if isinstance(x, str):
-            x = [x]
-        if isinstance(y, str):
-            y = [y]
+        features, targets = _str_to_list(features, targets)
 
         self._set_db(training)
         holdings: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_HODING.target_file]
         client: pd.DataFrame = self._current[SchemaTableRefs.CLIENT_TPYE.target_file]
 
         x_columns = [i for i in client.columns.tolist()]
-        x_columns = [i for i in x_columns if ColumnManager.get(i).label in x]
+        x_columns = [i for i in x_columns if ColumnManager.get(i).label in features]
         y_columns = [i for i in holdings.columns.tolist() if i != PK2]
-        y_columns = [i for i in y_columns if ColumnManager.get(i).label in y
+        y_columns = [i for i in y_columns if ColumnManager.get(i).label in targets
                      and (ColumnManager.get(i).transforms is None)]
 
         # !!!
