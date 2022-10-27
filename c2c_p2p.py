@@ -34,7 +34,7 @@ try:
     targetNames = List[targetName]
 
     begin = datetime.datetime.now()
-    results = defaultdict(lambda: defaultdict(dict))
+    results = BufferList()
     for i, task in enumerate(tasks):
 
         logging.info(f'Start on task {task.name}')
@@ -116,14 +116,20 @@ try:
 
                         # output result for all entries
                         for k, each_t in enumerate(targets):
-                            logging.debug((f'Predict task {task.name}: {i+1}/{len(tasks)},'
-                                           f' target {j+1}/{len(y_raw.columns.tolist())},' f' entry {k+1}/{len(targets)}'))
+                            logging.debug((f'Predict task {task.name}:' 
+                                           f'{i+1}/{len(tasks)},'
+                                           f' target {j+1},' 
+                                           f' entry {k+1}/{len(targets)}'))
                             w = class_wieghts.loc[each_t, ].values
                             if len(w.shape) > 1:
                                 w = w.mean(axis=0)
                             orders = np.argsort(w)[::-1]
-                            results[each_t][task.name][y_info.code] = [y_info.table, y_info.column] \
-                                + [f'{int(pipe["tree"].classes_[o])}({round(w[o], 2)}%)' for o in orders]
+                            decoder = SetCodeManager.get(y_info.name).decode
+                            line = [each_t, task.name, y_info.code, y_info.table, 
+                                y_info.column]
+                            line += [f'{decoder(pipe["tree"].classes_[o])}'
+                                f'({round(w[o], 2)}%)' for o in orders]
+                            results.append(line)
 
                 col_time = datetime.datetime.now() - col_begin
                 logging.info(f'Column {y_raw[y_col].name} complete, took {col_time}'

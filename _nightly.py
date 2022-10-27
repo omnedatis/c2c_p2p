@@ -8,7 +8,7 @@ ptn = '''
 ((?<!\')\'[^\'"]*".*"[^\'"]*\'(?!\')|
 (?<!\')\'[^\'"]*\'(?!\')|
 (?<!")"[^\'"]*\'.*\'[^\'"]*"(?!")|
-(?<!")"[^\'"]*"(?!")|)
+(?<!")"[^\'"]*"(?!"))
 '''
 str_pat = re.compile(ptn, flags=(re.VERBOSE | re.DOTALL))
 docstring_ptn = re.compile('(\'{3}|"{3})')
@@ -53,7 +53,12 @@ for py in py_files:
                     else:
                         ret.append(each.split(docstrings[0])[0])
                 elif '#' in stripped_line:
-                    cut = stripped_line[stripped_line.find('#'):]
+                    cuts = str_pat.split(each)
+                    for e, c in enumerate(cuts):
+                        if '#' in c and (not bool(str_pat.fullmatch(c))):
+                            break
+                    _comment = ''.join(cuts[e:])
+                    cut = _comment[_comment.find('#'):]
                     new_line = each[:-len(cut)].rstrip(' ')
                     if new_line:
                         ret.append(new_line+'\n')
