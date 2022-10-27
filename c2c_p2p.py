@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-from collections import defaultdict, namedtuple
 import datetime
 import logging
-import os
 import traceback
-from typing import Any, Dict, List, Callable, Generator, Tuple
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -62,8 +60,7 @@ try:
             y_value: np.ndarray = y_value[(y_value == y_value)]
 
             # remove ineffective columns
-            x_value: np.ndarray = _x_value[:,
-                                           (_x_value == _x_value).sum(axis=0) != 0]
+            x_value: np.ndarray = x_value[:, (x_value == x_value).sum(axis=0) != 0]
 
             # get data column name
             target_features[y_raw[y_col].name] = x_raw.columns[(
